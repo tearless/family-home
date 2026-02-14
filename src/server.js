@@ -17,9 +17,11 @@ const app = express();
 const PORT = process.env.PORT || 3010;
 const HOST = process.env.HOST || '127.0.0.1';
 const isVercel = process.env.VERCEL === '1';
+let dbInitError = null;
 const dbReady = initDb().catch((error) => {
-  // keep a handled rejection so serverless cold-start does not emit unhandled promise warnings
-  throw error;
+  dbInitError = error;
+  // eslint-disable-next-line no-console
+  console.error('DB init failed:', error);
 });
 
 const uploadStaticRoot = isVercel
@@ -49,6 +51,7 @@ app.use(
 app.use(async (_req, _res, next) => {
   try {
     await dbReady;
+    if (dbInitError) throw dbInitError;
     next();
   } catch (error) {
     next(error);
@@ -85,6 +88,7 @@ app.use((error, _req, res, _next) => {
 if (require.main === module) {
   dbReady
     .then(() => {
+      if (dbInitError) throw dbInitError;
       app.listen(PORT, HOST, () => {
         // eslint-disable-next-line no-console
         console.log(`family-home running on http://${HOST}:${PORT}`);
