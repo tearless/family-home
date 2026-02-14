@@ -175,8 +175,7 @@ li {
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
   padding: 1.15rem;
-  border: 1px solid var(--line);
-  border-bottom-color: rgba(128, 169, 232, 0.08);
+  border: 0;
   border-radius: 28px;
   background:
     linear-gradient(170deg, rgba(255, 255, 255, 0.82), rgba(232, 244, 255, 0.9));
@@ -192,6 +191,9 @@ li {
   background-size: cover, cover;
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;
+  box-shadow:
+    0 20px 38px rgba(20, 88, 182, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .home-page-shell {
