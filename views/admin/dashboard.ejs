@@ -65,9 +65,9 @@
     <% familyProfiles.forEach((profile) => { %>
       <article class="family-profile-item" data-family-profile-id="<%= profile.id %>">
         <div class="family-profile-photo">
-          <% if (profile.profile_image) { %>
+          <% if (profile.profile_image_url) { %>
             <img
-              src="<%= profile.profile_image %>"
+              src="<%= profile.profile_image_url %>"
               alt="<%= profile.name %> profile"
               data-family-profile-image="<%= profile.id %>"
               loading="lazy"

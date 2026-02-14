@@ -78,7 +78,7 @@
   function updateCoverPreview(url) {
     const imageUrl = String(url || '').trim();
     if (!coverPreview) return;
-    if (!imageUrl) {
+    if (!imageUrl || imageUrl.startsWith('sb://')) {
       coverPreview.classList.add('hidden-block');
       coverPreview.removeAttribute('src');
       return;
@@ -167,10 +167,10 @@
     if (!blob) throw new Error('Cover crop failed.');
 
     const file = new File([blob], `cover-${Date.now()}.jpg`, { type: 'image/jpeg' });
-    const imageUrl = await uploadImage(file);
+    const uploaded = await uploadImage(file);
 
-    postCoverImage.value = imageUrl;
-    updateCoverPreview(imageUrl);
+    postCoverImage.value = uploaded.imageRef;
+    updateCoverPreview(uploaded.imageUrl);
     coverImageUpload.value = '';
 
     if (coverCropSection) coverCropSection.classList.add('hidden-block');
@@ -287,6 +287,19 @@
     }
   }
 
+  function normalizeEditorHtmlForSubmit(html) {
+    return String(html || '').replace(/<img\b[^>]*>/gi, (tag) => {
+      const refMatch = tag.match(/\bdata-media-ref=(["'])(.*?)\1/i);
+      const withoutDataRef = tag.replace(/\sdata-media-ref=(["'])(.*?)\1/gi, '');
+      if (!refMatch || !refMatch[2]) return withoutDataRef;
+
+      if (/\bsrc=(["'])(.*?)\1/i.test(withoutDataRef)) {
+        return withoutDataRef.replace(/\bsrc=(["'])(.*?)\1/i, `src="${refMatch[2]}"`);
+      }
+      return withoutDataRef.replace(/\/?>$/, ` src="${refMatch[2]}"$&`);
+    });
+  }
+
   function applyAIDraft(draft) {
     if (!draft) return;
     latestAIDraft = draft;
@@ -309,7 +322,9 @@
 
     const json = await response.json();
     if (!json.ok) throw new Error(json.error || 'Upload failed');
-    return json.imageUrl || json.location;
+    const imageUrl = json.imageUrl || json.location || '';
+    const imageRef = json.imageRef || imageUrl;
+    return { imageUrl, imageRef };
   }
 
   async function sendPrompt() {
@@ -360,8 +375,10 @@
       if (!file) return;
 
       try {
-        const url = await uploadImage(file);
-        insertIntoEditor(`<p><img src="${url}" alt="image" /></p>`);
+        const uploaded = await uploadImage(file);
+        insertIntoEditor(
+          `<p><img src="${uploaded.imageUrl}" data-media-ref="${uploaded.imageRef}" alt="image" /></p>`
+        );
         editorImageUpload.value = '';
       } catch (error) {
         appendChat('assistant', error.message || 'Image upload failed.');
@@ -485,11 +502,13 @@
       setWorkspace('editor');
       return;
     }
-    contentField.value = getEditorHtml();
+    contentField.value = normalizeEditorHtmlForSubmit(getEditorHtml());
   });
 
   setEditorHtml(initial.post && initial.post.content ? initial.post.content : '');
   setMode('quill');
   setWorkspace(initial.mode === 'create' ? 'ai' : 'editor');
-  updateCoverPreview(initial.post && initial.post.coverImage ? initial.post.coverImage : '');
+  updateCoverPreview(initial.post && initial.post.coverImagePreview
+    ? initial.post.coverImagePreview
+    : (initial.post && initial.post.coverImage ? initial.post.coverImage : ''));
 })();

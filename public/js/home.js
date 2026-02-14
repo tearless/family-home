@@ -29,7 +29,7 @@
     card.style.setProperty('--r', `${r}deg`);
 
     const image = document.createElement('img');
-    image.src = photo.image_url;
+    image.src = photo.imageUrl;
     image.alt = photo.title || 'family photo';
     image.loading = 'lazy';
 

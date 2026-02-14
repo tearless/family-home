@@ -4,7 +4,7 @@ const { db } = require('../db');
 const { requireFamily } = require('../middleware/auth');
 const { saveSettings, settingsMap, testAiConnection } = require('../services/ai');
 const { profileUpload, landingUpload } = require('../middleware/upload');
-const { uploadImageFile } = require('../services/media');
+const { uploadImageFile, resolveImageUrl } = require('../services/media');
 
 const router = express.Router();
 
@@ -69,13 +69,19 @@ router.get('/', requireFamily, async (req, res) => {
 
   const apiSettings = await settingsMap();
   const apiConfigured = Boolean(apiSettings.ai_url && apiSettings.ai_key);
-  const landingBackgroundImage = String(apiSettings.landing_background_image || '').trim();
+  const familyProfilesWithUrls = await Promise.all(familyProfiles.map(async (profile) => ({
+    ...profile,
+    profile_image_url: await resolveImageUrl(profile.profile_image || '')
+  })));
+  const landingBackgroundImageRef = String(apiSettings.landing_background_image || '').trim();
+  const landingBackgroundImage = await resolveImageUrl(landingBackgroundImageRef);
 
   res.render('admin/dashboard', {
     title: 'Admin Dashboard',
     pendingRequests,
-    familyProfiles,
+    familyProfiles: familyProfilesWithUrls,
     landingBackgroundImage,
+    landingBackgroundImageRef,
     apiSettings,
     apiConfigured
   });
@@ -98,14 +104,15 @@ router.post('/family-profiles/:id/photo', requireFamily, uploadProfileImage, asy
   }
 
   try {
-    const imageUrl = await uploadImageFile({ file: req.file, folder: 'profiles' });
-    await db.run('UPDATE family_users SET profile_image = ? WHERE id = ?', imageUrl, id);
+    const uploaded = await uploadImageFile({ file: req.file, folder: 'profiles' });
+    await db.run('UPDATE family_users SET profile_image = ? WHERE id = ?', uploaded.ref, id);
 
     return res.json({
       ok: true,
       profileId: id,
       profileName: profile.name,
-      imageUrl
+      imageRef: uploaded.ref,
+      imageUrl: uploaded.url
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Profile upload failed.' });
@@ -118,18 +125,19 @@ router.post('/landing-background/photo', requireFamily, uploadLandingBackground,
   }
 
   try {
-    const imageUrl = await uploadImageFile({ file: req.file, folder: 'landing' });
+    const uploaded = await uploadImageFile({ file: req.file, folder: 'landing' });
     await db.run(
       `INSERT INTO api_settings (setting_key, setting_value)
        VALUES ('landing_background_image', ?)
        ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`
       ,
-      imageUrl
+      uploaded.ref
     );
 
     return res.json({
       ok: true,
-      imageUrl
+      imageRef: uploaded.ref,
+      imageUrl: uploaded.url
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Background upload failed.' });

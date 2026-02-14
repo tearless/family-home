@@ -40,6 +40,8 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_UPLOAD_BUCKET` (default: `family-home-media`)
+   - `SUPABASE_SIGNED_URL_EXPIRES_IN` (seconds, default: `259200`)
+   - Supabase Storage bucket visibility: set the upload bucket to **Private**.
 5. Run:
    ```bash
    npm run dev
@@ -49,5 +51,6 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 ## Notes
 - If AI API is not configured, photo categorization and AI blog creation use local fallback logic.
 - If SMTP credentials are missing, the app runs but email sends are logged instead of sent.
-- Uploaded images are stored in Supabase Storage bucket.
+- Uploaded images are stored as Supabase Storage references (`sb://bucket/path`) in DB.
+- Pages render private bucket images via signed URLs at request time.
 - App data is stored directly in Supabase Postgres.

@@ -6,7 +6,7 @@ const { secureToken } = require('../services/tokens');
 const { sendCommentAlert } = require('../services/email');
 const { categorizePhoto } = require('../services/ai');
 const { photoUpload } = require('../middleware/upload');
-const { uploadImageFile } = require('../services/media');
+const { uploadImageFile, resolveImageUrl } = require('../services/media');
 
 const router = express.Router();
 const allowedEmojis = ['❤️', '😍', '🥰', '👏', '🎉', '🌞', '✨'];
@@ -44,13 +44,17 @@ router.get('/manage', requireFamily, async (req, res) => {
     'SELECT id, name, slug, created_at FROM photo_categories ORDER BY name ASC'
   );
 
-  const recentPhotos = await db.all(
+  const recentPhotoRows = await db.all(
     `SELECT p.id, p.title, p.caption, p.image_url, p.created_at, p.created_by, c.name AS category_name
      FROM album_photos p
      LEFT JOIN photo_categories c ON c.id = p.category_id
      ORDER BY datetime(p.created_at) DESC
      LIMIT 40`
   );
+  const recentPhotos = await Promise.all(recentPhotoRows.map(async (photo) => ({
+    ...photo,
+    image_url: await resolveImageUrl(photo.image_url)
+  })));
 
   res.render('album/manage', {
     title: 'Manage Gallery',
@@ -67,6 +71,7 @@ router.post('/manage/photos', requireFamily, uploadPhotoMiddleware, async (req, 
   const imageUrlInput = (req.body.imageUrl || '').trim();
   const highlightOrder = Number(req.body.highlightOrder || 0);
 
+  let finalImageRef = '';
   let finalImageUrl = '';
   if (sourceType === 'upload') {
     if (!req.file) {
@@ -74,16 +79,19 @@ router.post('/manage/photos', requireFamily, uploadPhotoMiddleware, async (req, 
       return res.redirect('/album/manage');
     }
     try {
-      finalImageUrl = await uploadImageFile({ file: req.file, folder: 'photos' });
+      const uploaded = await uploadImageFile({ file: req.file, folder: 'photos' });
+      finalImageRef = uploaded.ref;
+      finalImageUrl = uploaded.url;
     } catch (error) {
       req.session.flash = { type: 'error', text: error.message || 'Photo upload failed.' };
       return res.redirect('/album/manage');
     }
   } else {
+    finalImageRef = imageUrlInput;
     finalImageUrl = imageUrlInput;
   }
 
-  if (!title || !finalImageUrl) {
+  if (!title || !finalImageRef) {
     req.session.flash = { type: 'error', text: 'Photo title and image source are required.' };
     return res.redirect('/album/manage');
   }
@@ -96,7 +104,7 @@ router.post('/manage/photos', requireFamily, uploadPhotoMiddleware, async (req, 
     ,
     title,
     caption,
-    finalImageUrl,
+    finalImageRef,
     category.id,
     req.session.familyUser.name,
     highlightOrder
@@ -165,6 +173,11 @@ router.get('/', requireAlbumAccess, async (req, res) => {
        ORDER BY p.id DESC`
     );
   }
+
+  photos = await Promise.all(photos.map(async (photo) => ({
+    ...photo,
+    image_url: await resolveImageUrl(photo.image_url)
+  })));
 
   const commentsByPhoto = {};
   for (const photo of photos) {

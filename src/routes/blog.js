@@ -8,7 +8,12 @@ const {
   uniqueBlogSlug
 } = require('../services/ai');
 const { blogUpload } = require('../middleware/upload');
-const { uploadImageFile } = require('../services/media');
+const {
+  uploadImageFile,
+  resolveImageUrl,
+  resolveHtmlImageSources,
+  normalizeHtmlForStorage
+} = require('../services/media');
 
 const router = express.Router();
 
@@ -49,12 +54,16 @@ function ensureHtmlDraft(draft = {}) {
 }
 
 router.get('/manage', requireFamily, async (req, res) => {
-  const posts = await db.all(
+  const postRows = await db.all(
     `SELECT id, title, slug, author, summary, cover_image, created_at
      FROM blog_posts
      WHERE published = 1
      ORDER BY datetime(created_at) DESC`
   );
+  const posts = await Promise.all(postRows.map(async (post) => ({
+    ...post,
+    cover_image: await resolveImageUrl(post.cover_image || '')
+  })));
 
   const ownPosts = posts.filter((post) => post.author === req.session.familyUser.name);
 
@@ -78,7 +87,8 @@ router.get('/manage/new', requireFamily, (req, res) => {
       summary: '',
       content: '',
       content_format: 'html',
-      cover_image: ''
+      cover_image: '',
+      cover_image_preview: ''
     }
   });
 });
@@ -92,9 +102,11 @@ router.get('/manage/:id/edit', requireFamily, requirePostAuthor, async (req, res
     id
   );
 
+  const sourceContent = source.content_format === 'html' ? source.content : markdownToHtml(source.content);
   const post = {
     ...source,
-    content: source.content_format === 'html' ? source.content : markdownToHtml(source.content)
+    content: await resolveHtmlImageSources(sourceContent, { withDataRef: true }),
+    cover_image_preview: await resolveImageUrl(source.cover_image || '')
   };
 
   return res.render('blog/editor', {
@@ -112,11 +124,12 @@ router.post('/manage/upload-image', requireFamily, uploadBlogImage, async (req, 
   }
 
   try {
-    const imageUrl = await uploadImageFile({ file: req.file, folder: 'blog' });
+    const uploaded = await uploadImageFile({ file: req.file, folder: 'blog' });
     return res.json({
       ok: true,
-      imageUrl,
-      location: imageUrl
+      imageRef: uploaded.ref,
+      imageUrl: uploaded.url,
+      location: uploaded.url
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Image upload failed.' });
@@ -178,6 +191,7 @@ router.post('/manage/create', requireFamily, async (req, res) => {
   }
 
   const slug = await uniqueBlogSlug(title);
+  const contentForStorage = normalizeHtmlForStorage(content);
 
   await db.run(
     `INSERT INTO blog_posts (title, slug, author, summary, content, content_format, cover_image, published, updated_at)
@@ -187,7 +201,7 @@ router.post('/manage/create', requireFamily, async (req, res) => {
     slug,
     req.session.familyUser.name,
     summary,
-    content,
+    contentForStorage,
     coverImage
   );
 
@@ -214,7 +228,7 @@ router.post('/manage/:id/update', requireFamily, requirePostAuthor, async (req, 
     ,
     title,
     summary,
-    content,
+    normalizeHtmlForStorage(content),
     coverImage,
     id
   );
@@ -231,12 +245,16 @@ router.post('/manage/:id/delete', requireFamily, requirePostAuthor, async (req, 
 });
 
 router.get('/', async (req, res) => {
-  const posts = await db.all(
+  const postRows = await db.all(
     `SELECT id, title, slug, author, summary, cover_image, created_at
      FROM blog_posts
      WHERE published = 1
      ORDER BY datetime(created_at) DESC`
   );
+  const posts = await Promise.all(postRows.map(async (post) => ({
+    ...post,
+    cover_image: await resolveImageUrl(post.cover_image || '')
+  })));
 
   res.render('blog/list', {
     title: 'Blog',
@@ -251,10 +269,15 @@ router.get('/:slug', async (req, res) => {
     return res.status(404).render('404', { title: 'Blog Not Found' });
   }
 
-  const htmlContent = post.content_format === 'html' ? post.content : markdownToHtml(post.content);
+  const sourceHtml = post.content_format === 'html' ? post.content : markdownToHtml(post.content);
+  const htmlContent = await resolveHtmlImageSources(sourceHtml);
+  const postWithResolvedCover = {
+    ...post,
+    cover_image: await resolveImageUrl(post.cover_image || '')
+  };
   return res.render('blog/detail', {
     title: post.title,
-    post,
+    post: postWithResolvedCover,
     htmlContent
   });
 });
