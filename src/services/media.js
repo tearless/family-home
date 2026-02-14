@@ -1,5 +1,10 @@
 const path = require('path');
-const { getStorageBucket, isFirebaseEnabled } = require('./firebase');
+const {
+  isSupabaseEnabled,
+  getUploadBucket,
+  uploadBuffer,
+  getPublicUrl
+} = require('./supabase');
 
 function safeExtname(file) {
   const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
@@ -11,30 +16,19 @@ async function uploadImageFile({ file, folder }) {
   if (!file) throw new Error('No file uploaded.');
   const cleanFolder = String(folder || '').replace(/[^a-z0-9/_-]/gi, '') || 'misc';
 
-  if (isFirebaseEnabled() && file.buffer) {
-    const bucket = getStorageBucket();
-    if (!bucket) throw new Error('Firebase Storage is not configured.');
-
+  if (isSupabaseEnabled() && file.buffer) {
     const ext = safeExtname(file);
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e8)}${ext}`;
     const objectPath = `uploads/${cleanFolder}/${filename}`;
-    const gcsFile = bucket.file(objectPath);
+    const bucket = getUploadBucket();
 
-    await gcsFile.save(file.buffer, {
-      contentType: file.mimetype || 'application/octet-stream',
-      resumable: false,
-      metadata: {
-        cacheControl: 'public, max-age=31536000'
-      }
+    await uploadBuffer({
+      bucket,
+      objectPath,
+      buffer: file.buffer,
+      contentType: file.mimetype || 'application/octet-stream'
     });
-
-    try {
-      await gcsFile.makePublic();
-    } catch (_) {
-      // Bucket may use uniform bucket-level access; URL can still work if bucket is public.
-    }
-
-    return `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
+    return getPublicUrl({ bucket, objectPath });
   }
 
   if (file.filename) {

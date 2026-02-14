@@ -3,12 +3,17 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const { slugify } = require('./services/text');
-const { getStorageBucket } = require('./services/firebase');
+const {
+  isSupabaseEnabled,
+  getDbBucket,
+  downloadObjectToFile,
+  uploadFileToObject
+} = require('./services/supabase');
 
 const isVercel = process.env.VERCEL === '1';
 const dbDir = isVercel ? '/tmp' : path.join(__dirname, '..', 'data');
 const dbPath = path.join(dbDir, 'family-home.db');
-const dbRemoteObject = process.env.FIREBASE_DB_OBJECT || 'state/family-home.db';
+const dbRemoteObject = process.env.SUPABASE_DB_OBJECT || 'state/family-home.db';
 
 let internalDb = null;
 let initPromise = null;
@@ -56,8 +61,7 @@ function scheduleDbPersist() {
         if (!persistDirty || !internalDb) return;
         persistDirty = false;
 
-        const bucket = getStorageBucket();
-        if (!bucket) return;
+        if (!isSupabaseEnabled()) return;
 
         try {
           internalDb.pragma('wal_checkpoint(TRUNCATE)');
@@ -65,9 +69,10 @@ function scheduleDbPersist() {
           // ignore when WAL is not active
         }
 
-        await bucket.upload(dbPath, {
-          destination: dbRemoteObject,
-          metadata: { cacheControl: 'no-store' }
+        await uploadFileToObject({
+          bucket: getDbBucket(),
+          objectPath: dbRemoteObject,
+          sourcePath: dbPath
         });
       })
       .catch((error) => {
@@ -77,21 +82,13 @@ function scheduleDbPersist() {
   }, 1200);
 }
 
-async function hydrateDbFromFirebase() {
-  const bucket = getStorageBucket();
-  if (!bucket) return false;
-
-  try {
-    const remote = bucket.file(dbRemoteObject);
-    const [exists] = await remote.exists();
-    if (!exists) return false;
-    await remote.download({ destination: dbPath });
-    return true;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('DB hydrate from Firebase failed:', error.message);
-    return false;
-  }
+async function hydrateDbFromRemote() {
+  if (!isSupabaseEnabled()) return false;
+  return downloadObjectToFile({
+    bucket: getDbBucket(),
+    objectPath: dbRemoteObject,
+    destination: dbPath
+  });
 }
 
 function patchDbPersistenceHooks() {
@@ -453,7 +450,7 @@ async function initDb() {
 
   initPromise = (async () => {
     ensureDir(dbDir);
-    await hydrateDbFromFirebase();
+    await hydrateDbFromRemote();
 
     internalDb = new Database(dbPath);
     try {
@@ -472,7 +469,7 @@ async function initDb() {
     seedBlogs();
     seedApiSettings();
 
-    persistenceEnabled = Boolean(getStorageBucket());
+    persistenceEnabled = isSupabaseEnabled();
     dbBooting = false;
     scheduleDbPersist();
   })();
