@@ -1,9 +1,15 @@
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const { slugify } = require('./services/text');
 
-const dbPath = path.join(__dirname, '..', 'data', 'family-home.db');
+const isVercel = process.env.VERCEL === '1';
+const dbDir = isVercel ? '/tmp' : path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+const dbPath = path.join(dbDir, 'family-home.db');
 const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');

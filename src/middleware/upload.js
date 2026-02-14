@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 
+const isVercel = process.env.VERCEL === '1';
+const uploadBaseDir = isVercel
+  ? path.join('/tmp', 'family-home-uploads')
+  : path.join(__dirname, '..', '..', 'public', 'uploads');
+
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -9,7 +14,7 @@ function ensureDir(dir) {
 }
 
 function makeStorage(subdir) {
-  const targetDir = path.join(__dirname, '..', '..', 'public', 'uploads', subdir);
+  const targetDir = path.join(uploadBaseDir, subdir);
   ensureDir(targetDir);
 
   return multer.diskStorage({
