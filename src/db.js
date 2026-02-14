@@ -3,43 +3,154 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const { slugify } = require('./services/text');
+const { getStorageBucket } = require('./services/firebase');
 
 const isVercel = process.env.VERCEL === '1';
 const dbDir = isVercel ? '/tmp' : path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
 const dbPath = path.join(dbDir, 'family-home.db');
-const db = new Database(dbPath);
+const dbRemoteObject = process.env.FIREBASE_DB_OBJECT || 'state/family-home.db';
 
-db.pragma('journal_mode = WAL');
+let internalDb = null;
+let initPromise = null;
+
+let persistenceEnabled = false;
+let dbBooting = true;
+let persistTimer = null;
+let persistDirty = false;
+let persistInFlight = Promise.resolve();
+
+const mutationRegex = /^(insert|update|delete|replace|create|alter|drop|vacuum|reindex|begin|commit|rollback|pragma)\b/i;
+
+const db = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      if (!internalDb) {
+        throw new Error('Database is not initialized yet.');
+      }
+      const value = internalDb[prop];
+      return typeof value === 'function' ? value.bind(internalDb) : value;
+    }
+  }
+);
+
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function isMutatingSql(sql = '') {
+  return mutationRegex.test(String(sql).trim());
+}
+
+function scheduleDbPersist() {
+  if (!persistenceEnabled || dbBooting) return;
+  persistDirty = true;
+  if (persistTimer) return;
+
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistInFlight = persistInFlight
+      .then(async () => {
+        if (!persistDirty || !internalDb) return;
+        persistDirty = false;
+
+        const bucket = getStorageBucket();
+        if (!bucket) return;
+
+        try {
+          internalDb.pragma('wal_checkpoint(TRUNCATE)');
+        } catch (_) {
+          // ignore when WAL is not active
+        }
+
+        await bucket.upload(dbPath, {
+          destination: dbRemoteObject,
+          metadata: { cacheControl: 'no-store' }
+        });
+      })
+      .catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error('DB persistence upload failed:', error.message);
+      });
+  }, 1200);
+}
+
+async function hydrateDbFromFirebase() {
+  const bucket = getStorageBucket();
+  if (!bucket) return false;
+
+  try {
+    const remote = bucket.file(dbRemoteObject);
+    const [exists] = await remote.exists();
+    if (!exists) return false;
+    await remote.download({ destination: dbPath });
+    return true;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('DB hydrate from Firebase failed:', error.message);
+    return false;
+  }
+}
+
+function patchDbPersistenceHooks() {
+  if (!internalDb) return;
+
+  const rawPrepare = internalDb.prepare.bind(internalDb);
+  internalDb.prepare = (sql) => {
+    const stmt = rawPrepare(sql);
+    if (!isMutatingSql(sql)) return stmt;
+
+    return new Proxy(stmt, {
+      get(target, prop) {
+        const value = target[prop];
+        if (prop === 'run' && typeof value === 'function') {
+          return (...args) => {
+            const result = value.apply(target, args);
+            scheduleDbPersist();
+            return result;
+          };
+        }
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  };
+
+  const rawExec = internalDb.exec.bind(internalDb);
+  internalDb.exec = (sql) => {
+    const result = rawExec(sql);
+    if (isMutatingSql(sql)) scheduleDbPersist();
+    return result;
+  };
+}
 
 function hasColumn(table, column) {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  const columns = internalDb.prepare(`PRAGMA table_info(${table})`).all();
   return columns.some((entry) => entry.name === column);
 }
 
 function getOrCreateCategory(name) {
   const cleanName = (name || '').trim() || 'Everyday';
-  let row = db.prepare('SELECT * FROM photo_categories WHERE name = ?').get(cleanName);
+  let row = internalDb.prepare('SELECT * FROM photo_categories WHERE name = ?').get(cleanName);
   if (row) return row;
 
   const baseSlug = slugify(cleanName) || 'everyday';
   let slug = baseSlug;
   let index = 1;
-  while (db.prepare('SELECT id FROM photo_categories WHERE slug = ?').get(slug)) {
+  while (internalDb.prepare('SELECT id FROM photo_categories WHERE slug = ?').get(slug)) {
     slug = `${baseSlug}-${index}`;
     index += 1;
   }
 
-  const result = db
+  const result = internalDb
     .prepare('INSERT INTO photo_categories (name, slug) VALUES (?, ?)')
     .run(cleanName, slug);
-  return db.prepare('SELECT * FROM photo_categories WHERE id = ?').get(result.lastInsertRowid);
+  return internalDb.prepare('SELECT * FROM photo_categories WHERE id = ?').get(result.lastInsertRowid);
 }
 
 function migrate() {
-  db.exec(`
+  internalDb.exec(`
     CREATE TABLE IF NOT EXISTS family_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -170,40 +281,40 @@ function migrate() {
   `);
 
   if (!hasColumn('album_photos', 'category_id')) {
-    db.exec('ALTER TABLE album_photos ADD COLUMN category_id INTEGER');
+    internalDb.exec('ALTER TABLE album_photos ADD COLUMN category_id INTEGER');
   }
 
   if (!hasColumn('album_photos', 'created_by')) {
-    db.exec("ALTER TABLE album_photos ADD COLUMN created_by TEXT NOT NULL DEFAULT 'system'");
+    internalDb.exec("ALTER TABLE album_photos ADD COLUMN created_by TEXT NOT NULL DEFAULT 'system'");
   }
 
   if (!hasColumn('blog_posts', 'cover_image')) {
-    db.exec('ALTER TABLE blog_posts ADD COLUMN cover_image TEXT');
+    internalDb.exec('ALTER TABLE blog_posts ADD COLUMN cover_image TEXT');
   }
 
   if (!hasColumn('blog_posts', 'content_format')) {
-    db.exec("ALTER TABLE blog_posts ADD COLUMN content_format TEXT NOT NULL DEFAULT 'markdown'");
+    internalDb.exec("ALTER TABLE blog_posts ADD COLUMN content_format TEXT NOT NULL DEFAULT 'markdown'");
   }
 
   if (!hasColumn('family_users', 'profile_image')) {
-    db.exec('ALTER TABLE family_users ADD COLUMN profile_image TEXT');
+    internalDb.exec('ALTER TABLE family_users ADD COLUMN profile_image TEXT');
   }
 
   if (!hasColumn('family_users', 'profile_bio')) {
-    db.exec('ALTER TABLE family_users ADD COLUMN profile_bio TEXT');
+    internalDb.exec('ALTER TABLE family_users ADD COLUMN profile_bio TEXT');
   }
 
   if (!hasColumn('album_comments', 'parent_comment_id')) {
-    db.exec('ALTER TABLE album_comments ADD COLUMN parent_comment_id INTEGER');
+    internalDb.exec('ALTER TABLE album_comments ADD COLUMN parent_comment_id INTEGER');
   }
 
-  db.exec('CREATE INDEX IF NOT EXISTS idx_album_comments_photo_parent ON album_comments(photo_id, parent_comment_id, id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_comment_reactions_comment ON comment_reactions(comment_id, emoji)');
+  internalDb.exec('CREATE INDEX IF NOT EXISTS idx_album_comments_photo_parent ON album_comments(photo_id, parent_comment_id, id)');
+  internalDb.exec('CREATE INDEX IF NOT EXISTS idx_comment_reactions_comment ON comment_reactions(comment_id, emoji)');
 }
 
 function seedFamilyUsers() {
   const users = ['Anton', 'Olivia', 'Eliana'];
-  const insert = db.prepare(
+  const insert = internalDb.prepare(
     'INSERT OR IGNORE INTO family_users (name, password_hash, role) VALUES (?, ?, ?)'
   );
 
@@ -219,7 +330,7 @@ function backfillFamilyBios() {
     ['Olivia', '감성과 색감을 채우는 크리에이터.'],
     ['Eliana', '작은 일상을 특별하게 만드는 주인공.']
   ];
-  const update = db.prepare(
+  const update = internalDb.prepare(
     `UPDATE family_users
      SET profile_bio = ?
      WHERE name = ? AND (profile_bio IS NULL OR trim(profile_bio) = '')`
@@ -234,10 +345,10 @@ function seedCategories() {
 }
 
 function seedPhotos() {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM album_photos').get().c;
+  const count = internalDb.prepare('SELECT COUNT(*) AS c FROM album_photos').get().c;
   if (count > 0) return;
 
-  const insert = db.prepare(`
+  const insert = internalDb.prepare(`
     INSERT INTO album_photos (title, caption, image_url, category_id, created_by, highlight_order)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
@@ -278,15 +389,15 @@ function seedPhotos() {
 
 function backfillPhotoCategory() {
   const defaultCategory = getOrCreateCategory('Everyday');
-  db.prepare('UPDATE album_photos SET category_id = ? WHERE category_id IS NULL').run(defaultCategory.id);
-  db.prepare("UPDATE album_photos SET created_by = 'system' WHERE created_by IS NULL OR created_by = ''").run();
+  internalDb.prepare('UPDATE album_photos SET category_id = ? WHERE category_id IS NULL').run(defaultCategory.id);
+  internalDb.prepare("UPDATE album_photos SET created_by = 'system' WHERE created_by IS NULL OR created_by = ''").run();
 }
 
 function seedBlogs() {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM blog_posts').get().c;
+  const count = internalDb.prepare('SELECT COUNT(*) AS c FROM blog_posts').get().c;
   if (count > 0) return;
 
-  const insert = db.prepare(`
+  const insert = internalDb.prepare(`
     INSERT INTO blog_posts (title, slug, author, summary, content, content_format, cover_image)
     VALUES (@title, @slug, @author, @summary, @content, @content_format, @cover_image)
   `);
@@ -330,22 +441,43 @@ function seedApiSettings() {
     ['ai_category_system_prompt', 'Classify family photos into short category names.']
   ];
 
-  const insert = db.prepare(
+  const insert = internalDb.prepare(
     'INSERT OR IGNORE INTO api_settings (setting_key, setting_value) VALUES (?, ?)'
   );
 
   defaults.forEach(([key, value]) => insert.run(key, value));
 }
 
-function initDb() {
-  migrate();
-  seedFamilyUsers();
-  backfillFamilyBios();
-  seedCategories();
-  seedPhotos();
-  backfillPhotoCategory();
-  seedBlogs();
-  seedApiSettings();
+async function initDb() {
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    ensureDir(dbDir);
+    await hydrateDbFromFirebase();
+
+    internalDb = new Database(dbPath);
+    try {
+      internalDb.pragma('journal_mode = DELETE');
+    } catch (_) {
+      // Keep default mode if lock/state prevents pragma change.
+    }
+    patchDbPersistenceHooks();
+
+    migrate();
+    seedFamilyUsers();
+    backfillFamilyBios();
+    seedCategories();
+    seedPhotos();
+    backfillPhotoCategory();
+    seedBlogs();
+    seedApiSettings();
+
+    persistenceEnabled = Boolean(getStorageBucket());
+    dbBooting = false;
+    scheduleDbPersist();
+  })();
+
+  return initPromise;
 }
 
 module.exports = { db, initDb, getOrCreateCategory };

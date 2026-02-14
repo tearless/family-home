@@ -6,6 +6,7 @@ const { secureToken } = require('../services/tokens');
 const { sendCommentAlert } = require('../services/email');
 const { categorizePhoto } = require('../services/ai');
 const { photoUpload } = require('../middleware/upload');
+const { uploadImageFile } = require('../services/media');
 
 const router = express.Router();
 const allowedEmojis = ['❤️', '😍', '🥰', '👏', '🎉', '🌞', '✨'];
@@ -69,8 +70,17 @@ router.post('/manage/photos', requireFamily, uploadPhotoMiddleware, async (req, 
   const highlightOrder = Number(req.body.highlightOrder || 0);
 
   let finalImageUrl = '';
-  if (sourceType === 'upload' && req.file) {
-    finalImageUrl = `/uploads/photos/${req.file.filename}`;
+  if (sourceType === 'upload') {
+    if (!req.file) {
+      req.session.flash = { type: 'error', text: 'Please choose a photo file to upload.' };
+      return res.redirect('/album/manage');
+    }
+    try {
+      finalImageUrl = await uploadImageFile({ file: req.file, folder: 'photos' });
+    } catch (error) {
+      req.session.flash = { type: 'error', text: error.message || 'Photo upload failed.' };
+      return res.redirect('/album/manage');
+    }
   } else {
     finalImageUrl = imageUrlInput;
   }

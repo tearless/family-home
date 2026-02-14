@@ -4,6 +4,7 @@ const { db } = require('../db');
 const { requireFamily } = require('../middleware/auth');
 const { saveSettings, settingsMap, testAiConnection } = require('../services/ai');
 const { profileUpload, landingUpload } = require('../middleware/upload');
+const { uploadImageFile } = require('../services/media');
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ router.get('/', requireFamily, (req, res) => {
   });
 });
 
-router.post('/family-profiles/:id/photo', requireFamily, uploadProfileImage, (req, res) => {
+router.post('/family-profiles/:id/photo', requireFamily, uploadProfileImage, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ ok: false, error: 'Invalid profile id.' });
@@ -99,33 +100,41 @@ router.post('/family-profiles/:id/photo', requireFamily, uploadProfileImage, (re
     return res.status(400).json({ ok: false, error: 'No image uploaded.' });
   }
 
-  const imageUrl = `/uploads/profiles/${req.file.filename}`;
-  db.prepare('UPDATE family_users SET profile_image = ? WHERE id = ?').run(imageUrl, id);
+  try {
+    const imageUrl = await uploadImageFile({ file: req.file, folder: 'profiles' });
+    db.prepare('UPDATE family_users SET profile_image = ? WHERE id = ?').run(imageUrl, id);
 
-  return res.json({
-    ok: true,
-    profileId: id,
-    profileName: profile.name,
-    imageUrl
-  });
+    return res.json({
+      ok: true,
+      profileId: id,
+      profileName: profile.name,
+      imageUrl
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Profile upload failed.' });
+  }
 });
 
-router.post('/landing-background/photo', requireFamily, uploadLandingBackground, (req, res) => {
+router.post('/landing-background/photo', requireFamily, uploadLandingBackground, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ ok: false, error: 'No image uploaded.' });
   }
 
-  const imageUrl = `/uploads/landing/${req.file.filename}`;
-  db.prepare(
-    `INSERT INTO api_settings (setting_key, setting_value)
-     VALUES ('landing_background_image', ?)
-     ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`
-  ).run(imageUrl);
+  try {
+    const imageUrl = await uploadImageFile({ file: req.file, folder: 'landing' });
+    db.prepare(
+      `INSERT INTO api_settings (setting_key, setting_value)
+       VALUES ('landing_background_image', ?)
+       ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`
+    ).run(imageUrl);
 
-  return res.json({
-    ok: true,
-    imageUrl
-  });
+    return res.json({
+      ok: true,
+      imageUrl
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Background upload failed.' });
+  }
 });
 
 router.post('/family-profiles/:id/bio', requireFamily, (req, res) => {

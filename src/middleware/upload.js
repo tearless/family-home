@@ -1,11 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { isFirebaseEnabled } = require('../services/firebase');
 
 const isVercel = process.env.VERCEL === '1';
 const uploadBaseDir = isVercel
   ? path.join('/tmp', 'family-home-uploads')
   : path.join(__dirname, '..', '..', 'public', 'uploads');
+const useMemoryStorage = isFirebaseEnabled();
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
@@ -14,6 +16,10 @@ function ensureDir(dir) {
 }
 
 function makeStorage(subdir) {
+  if (useMemoryStorage) {
+    return multer.memoryStorage();
+  }
+
   const targetDir = path.join(uploadBaseDir, subdir);
   ensureDir(targetDir);
 

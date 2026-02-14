@@ -22,6 +22,7 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 - SQLite (`better-sqlite3`)
 - `express-session`
 - Nodemailer
+- Firebase Admin SDK (optional, for Google Storage persistence)
 
 ## Setup
 1. Install dependencies:
@@ -33,12 +34,19 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
    cp .env.example .env
    ```
 3. Update `.env` values (`SESSION_SECRET`, SMTP values, optional AI settings).
-4. Run:
+4. (Recommended on Vercel) Configure Google/Firebase Storage env values:
+   - `FIREBASE_SERVICE_ACCOUNT_JSON` (full JSON as one line)  
+     or `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+   - `FIREBASE_STORAGE_BUCKET`
+   - optional `FIREBASE_DB_OBJECT` (default: `state/family-home.db`)
+5. Run:
    ```bash
    npm run dev
    ```
-5. Open [http://localhost:3010](http://localhost:3010)
+6. Open [http://localhost:3010](http://localhost:3010)
 
 ## Notes
 - If AI API is not configured, photo categorization and AI blog creation use local fallback logic.
 - If SMTP credentials are missing, the app runs but email sends are logged instead of sent.
+- If Firebase Storage is configured, uploaded images are stored in Google Cloud Storage.
+- If Firebase Storage is configured, SQLite DB is snapshotted to bucket object (`FIREBASE_DB_OBJECT`) for Vercel persistence.

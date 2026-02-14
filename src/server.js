@@ -12,12 +12,11 @@ const albumRoutes = require('./routes/album');
 const adminRoutes = require('./routes/admin');
 const blogRoutes = require('./routes/blog');
 
-initDb();
-
 const app = express();
 const PORT = process.env.PORT || 3010;
 const HOST = process.env.HOST || '127.0.0.1';
 const isVercel = process.env.VERCEL === '1';
+const dbReady = initDb();
 
 const uploadStaticRoot = isVercel
   ? path.join('/tmp', 'family-home-uploads')
@@ -43,6 +42,15 @@ app.use(
   })
 );
 
+app.use(async (_req, _res, next) => {
+  try {
+    await dbReady;
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((req, res, next) => {
   res.locals.familyUser = req.session.familyUser || null;
   res.locals.memberUser = req.session.memberUser || null;
@@ -61,11 +69,28 @@ app.use((req, res) => {
   res.status(404).render('404', { title: 'Page Not Found' });
 });
 
-if (require.main === module) {
-  app.listen(PORT, HOST, () => {
-    // eslint-disable-next-line no-console
-    console.log(`family-home running on http://${HOST}:${PORT}`);
+app.use((error, _req, res, _next) => {
+  // eslint-disable-next-line no-console
+  console.error('server error', error);
+  return res.status(500).render('message', {
+    title: 'Server Error',
+    message: 'An internal error occurred. Please try again.'
   });
+});
+
+if (require.main === module) {
+  dbReady
+    .then(() => {
+      app.listen(PORT, HOST, () => {
+        // eslint-disable-next-line no-console
+        console.log(`family-home running on http://${HOST}:${PORT}`);
+      });
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to initialize DB:', error);
+      process.exit(1);
+    });
 }
 
 module.exports = app;

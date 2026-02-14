@@ -8,6 +8,7 @@ const {
   uniqueBlogSlug
 } = require('../services/ai');
 const { blogUpload } = require('../middleware/upload');
+const { uploadImageFile } = require('../services/media');
 
 const router = express.Router();
 
@@ -108,17 +109,21 @@ router.get('/manage/:id/edit', requireFamily, requirePostAuthor, (req, res) => {
   });
 });
 
-router.post('/manage/upload-image', requireFamily, uploadBlogImage, (req, res) => {
+router.post('/manage/upload-image', requireFamily, uploadBlogImage, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ ok: false, error: 'No image file uploaded.' });
   }
 
-  const imageUrl = `/uploads/blog/${req.file.filename}`;
-  return res.json({
-    ok: true,
-    imageUrl,
-    location: imageUrl
-  });
+  try {
+    const imageUrl = await uploadImageFile({ file: req.file, folder: 'blog' });
+    return res.json({
+      ok: true,
+      imageUrl,
+      location: imageUrl
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Image upload failed.' });
+  }
 });
 
 router.post('/manage/ai/chat', requireFamily, async (req, res) => {
