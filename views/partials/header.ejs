@@ -19,13 +19,13 @@
         <a href="/admin">Admin</a>
       </nav>
       <div class="status-bar">
-        <% if (memberUser) { %>
+        <% if (typeof memberUser !== 'undefined' && memberUser) { %>
           <span class="badge">Member: <%= memberUser.name %></span>
           <form method="post" action="/auth/member/logout">
             <button class="btn ghost">Member Logout</button>
           </form>
         <% } %>
-        <% if (familyUser) { %>
+        <% if (typeof familyUser !== 'undefined' && familyUser) { %>
           <span class="badge">Family: <%= familyUser.name %></span>
           <form method="post" action="/admin/logout">
             <button class="btn ghost">Admin Logout</button>
@@ -33,7 +33,7 @@
         <% } %>
       </div>
     </header>
-    <% if (flash) { %>
+    <% if (typeof flash !== 'undefined' && flash) { %>
       <div class="flash <%= flash.type %>"><%= flash.text %></div>
     <% } %>
     <main class="content">

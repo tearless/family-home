@@ -79,9 +79,18 @@ app.use((req, res) => {
 app.use((error, _req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error('server error', error);
-  return res.status(500).render('message', {
+  const payload = {
     title: 'Server Error',
     message: 'An internal error occurred. Please try again.'
+  };
+
+  return res.render('message', payload, (renderError, html) => {
+    if (renderError) {
+      // eslint-disable-next-line no-console
+      console.error('error page render failed', renderError);
+      return res.status(500).type('text/plain').send('Internal Server Error');
+    }
+    return res.status(500).send(html);
   });
 });
 
