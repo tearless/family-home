@@ -4,11 +4,17 @@ const { slugify } = require('./services/text');
 
 const connectionString = process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || '';
 const sslEnabled = String(process.env.SUPABASE_DB_SSL || 'true').toLowerCase() !== 'false';
+const connectionTimeoutMillis = Number(process.env.DB_CONNECTION_TIMEOUT_MS || 8000);
+const statementTimeout = Number(process.env.DB_STATEMENT_TIMEOUT_MS || 12000);
+const queryTimeout = Number(process.env.DB_QUERY_TIMEOUT_MS || 12000);
 
 const pool = connectionString
   ? new Pool({
       connectionString,
-      ssl: sslEnabled ? { rejectUnauthorized: false } : false
+      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: Number.isFinite(connectionTimeoutMillis) ? connectionTimeoutMillis : 8000,
+      statement_timeout: Number.isFinite(statementTimeout) ? statementTimeout : 12000,
+      query_timeout: Number.isFinite(queryTimeout) ? queryTimeout : 12000
     })
   : null;
 
