@@ -1,7 +1,7 @@
 {
   "name": "family-home",
   "version": "1.0.0",
-  "description": "Dynamic family homepage with projects, albums, moderated comments, and admin tools",
+  "description": "Dynamic family homepage with albums, blog, moderated comments, and admin tools",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
