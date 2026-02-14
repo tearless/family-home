@@ -4,6 +4,16 @@ const { resolveImageUrl } = require('../services/media');
 
 const router = express.Router();
 
+function normalizeProfileBio(input) {
+  return String(input || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 router.get('/', async (req, res) => {
   const bioByName = {
     Anton: '기획과 구현을 담당하는 패밀리 메이커.',
@@ -24,10 +34,11 @@ router.get('/', async (req, res) => {
   const byName = new Map(familyRows.map((row) => [row.name, row]));
   const members = await Promise.all(orderedNames.map(async (name) => {
     const row = byName.get(name);
+    const profileBio = row ? normalizeProfileBio(row.profile_bio || '') : '';
     return {
       id: row ? row.id : null,
       name,
-      bio: row && String(row.profile_bio || '').trim() ? row.profile_bio : (bioByName[name] || ''),
+      bio: profileBio || (bioByName[name] || ''),
       profileImage: row ? await resolveImageUrl(row.profile_image || '') : ''
     };
   }));

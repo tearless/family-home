@@ -8,6 +8,16 @@ const { uploadImageFile, resolveImageUrl } = require('../services/media');
 
 const router = express.Router();
 
+function normalizeProfileBio(input) {
+  return String(input || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function uploadProfileImage(req, res, next) {
   profileUpload.single('imageFile')(req, res, (err) => {
     if (err) {
@@ -157,7 +167,7 @@ router.post('/family-profiles/:id/bio', requireFamily, async (req, res) => {
     return res.redirect('/admin');
   }
 
-  const bio = String(req.body.profileBio || '').trim();
+  const bio = normalizeProfileBio(req.body.profileBio);
   if (bio.length > 600) {
     req.session.flash = { type: 'error', text: '소개 문구는 600자 이내로 입력해주세요.' };
     return res.redirect('/admin');
