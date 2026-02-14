@@ -6,6 +6,7 @@ const path = require('path');
 const express = require('express');
 const session = require('express-session');
 const { initDb } = require('./db');
+const { PgSessionStore } = require('./services/session-store');
 
 const indexRoutes = require('./routes/index');
 const authRoutes = require('./routes/auth');
@@ -17,6 +18,9 @@ const app = express();
 const PORT = process.env.PORT || 3010;
 const HOST = process.env.HOST || '127.0.0.1';
 const isVercel = process.env.VERCEL === '1';
+const sessionMaxAge = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 6);
+const sessionCookieSecure =
+  String(process.env.SESSION_COOKIE_SECURE || (isVercel ? 'true' : 'false')).toLowerCase() === 'true';
 let dbInitError = null;
 const dbReady = initDb().catch((error) => {
   dbInitError = error;
@@ -39,14 +43,7 @@ app.use(express.urlencoded({ extended: true, limit: '8mb' }));
 app.use(express.json({ limit: '8mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(uploadStaticRoot));
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'family-home-dev-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 1000 * 60 * 60 * 6 }
-  })
-);
+app.set('trust proxy', 1);
 
 app.use(async (_req, _res, next) => {
   try {
@@ -57,6 +54,23 @@ app.use(async (_req, _res, next) => {
     next(error);
   }
 });
+
+app.use(
+  session({
+    store: new PgSessionStore({
+      ttlMs: Number(process.env.SESSION_STORE_TTL_MS || 1000 * 60 * 60 * 24 * 7)
+    }),
+    secret: process.env.SESSION_SECRET || 'family-home-dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: Number.isFinite(sessionMaxAge) ? sessionMaxAge : 1000 * 60 * 60 * 6,
+      secure: sessionCookieSecure,
+      httpOnly: true,
+      sameSite: 'lax'
+    }
+  })
+);
 
 app.use((req, res, next) => {
   res.locals.familyUser = req.session.familyUser || null;

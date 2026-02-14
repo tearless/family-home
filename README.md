@@ -50,6 +50,10 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
    - `SUPABASE_UPLOAD_BUCKET` (default: `family-home-media`)
    - `SUPABASE_SIGNED_URL_EXPIRES_IN` (seconds, default: `259200`)
    - Supabase Storage bucket visibility: set the upload bucket to **Private**.
+   - Session settings:
+     - `SESSION_TTL_MS` (cookie max age, default 6h)
+     - `SESSION_STORE_TTL_MS` (server-side session ttl, default 7d)
+     - `SESSION_COOKIE_SECURE` (`true` for HTTPS deployments like Vercel)
 5. Run:
    ```bash
    npm run dev
@@ -62,3 +66,4 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 - Uploaded images are stored as Supabase Storage references (`sb://bucket/path`) in DB.
 - Pages render private bucket images via signed URLs at request time.
 - App data is stored directly in Supabase Postgres.
+- Sessions are stored in Postgres (`family_sessions`), so login persists across serverless instances.

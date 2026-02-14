@@ -304,8 +304,18 @@ async function migrate() {
     );
   `);
 
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS family_sessions (
+      sid TEXT PRIMARY KEY,
+      sess TEXT NOT NULL,
+      expire TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   await db.query('CREATE INDEX IF NOT EXISTS idx_album_comments_photo_parent ON album_comments(photo_id, parent_comment_id, id)');
   await db.query('CREATE INDEX IF NOT EXISTS idx_comment_reactions_comment ON comment_reactions(comment_id, emoji)');
+  await db.query('CREATE INDEX IF NOT EXISTS idx_family_sessions_expire ON family_sessions(expire)');
 }
 
 async function seedFamilyUsers() {
