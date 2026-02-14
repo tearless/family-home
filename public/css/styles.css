@@ -176,11 +176,13 @@ li {
   gap: 1rem;
   padding: 1.15rem;
   border: 1px solid var(--line);
+  border-bottom-color: rgba(128, 169, 232, 0.08);
   border-radius: 28px;
   background:
     linear-gradient(170deg, rgba(255, 255, 255, 0.82), rgba(232, 244, 255, 0.9));
   box-shadow: var(--shadow);
   min-height: 380px;
+  overflow: hidden;
 }
 
 .landing-hero.with-hero-bg-image {
@@ -292,6 +294,10 @@ li {
   padding-top: 3rem;
   text-align: center;
   overflow: visible;
+}
+
+.home-members .member-card {
+  border-top-color: transparent;
 }
 
 .member-avatar-slot {
