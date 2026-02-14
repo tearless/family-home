@@ -6,6 +6,9 @@ const connectionString = process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL
 const sslEnabled = String(process.env.SUPABASE_DB_SSL || 'true').toLowerCase() !== 'false';
 const sslMode = String(process.env.DB_SSL_MODE || 'no-verify').trim().toLowerCase();
 const allowSelfSigned = String(process.env.DB_ALLOW_SELF_SIGNED || 'true').toLowerCase() !== 'false';
+const isVercelRuntime = process.env.VERCEL === '1';
+const poolMax = Number(process.env.DB_POOL_MAX || (isVercelRuntime ? 1 : 10));
+const idleTimeoutMillis = Number(process.env.DB_IDLE_TIMEOUT_MS || 5000);
 const connectionTimeoutMillis = Number(process.env.DB_CONNECTION_TIMEOUT_MS || 8000);
 const statementTimeout = Number(process.env.DB_STATEMENT_TIMEOUT_MS || 12000);
 const queryTimeout = Number(process.env.DB_QUERY_TIMEOUT_MS || 12000);
@@ -55,6 +58,9 @@ function buildPoolConfig() {
           requestCert: false
         }
       : false,
+    max: Number.isFinite(poolMax) && poolMax > 0 ? Math.floor(poolMax) : 1,
+    idleTimeoutMillis: Number.isFinite(idleTimeoutMillis) ? idleTimeoutMillis : 5000,
+    allowExitOnIdle: true,
     connectionTimeoutMillis: Number.isFinite(connectionTimeoutMillis) ? connectionTimeoutMillis : 8000,
     statement_timeout: Number.isFinite(statementTimeout) ? statementTimeout : 12000,
     query_timeout: Number.isFinite(queryTimeout) ? queryTimeout : 12000
@@ -460,9 +466,26 @@ async function seedApiSettings() {
   }
 }
 
+async function schemaLooksReady() {
+  const row = await db.get("SELECT to_regclass('public.family_users') IS NOT NULL AS ready");
+  return Boolean(row && (row.ready === true || row.ready === 1 || row.ready === 't'));
+}
+
 async function initDb() {
   if (initPromise) return initPromise;
   initPromise = (async () => {
+    const bootstrapMode = String(
+      process.env.DB_BOOTSTRAP_ON_START || (isVercelRuntime ? 'auto' : 'always')
+    )
+      .trim()
+      .toLowerCase();
+
+    if (bootstrapMode === 'never') return;
+    if (bootstrapMode === 'auto') {
+      const ready = await schemaLooksReady().catch(() => false);
+      if (ready) return;
+    }
+
     await migrate();
     await seedFamilyUsers();
     await backfillFamilyBios();
