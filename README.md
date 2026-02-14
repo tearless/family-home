@@ -19,10 +19,10 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 ## Stack
 - Node.js
 - Express + EJS
-- SQLite (`better-sqlite3`)
+- Supabase Postgres (`pg`)
+- Supabase Storage (`@supabase/supabase-js`)
 - `express-session`
 - Nodemailer
-- Supabase Storage SDK (optional, for Vercel persistence)
 
 ## Setup
 1. Install dependencies:
@@ -34,12 +34,12 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
    cp .env.example .env
    ```
 3. Update `.env` values (`SESSION_SECRET`, SMTP values, optional AI settings).
-4. (Recommended on Vercel) Configure Supabase env values:
+4. Configure Supabase env values:
+   - `SUPABASE_DB_URL` (Supabase Postgres connection string)
+   - `SUPABASE_DB_SSL` (`true` by default)
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_UPLOAD_BUCKET` (default: `family-home-media`)
-   - `SUPABASE_DB_BUCKET` (default: `family-home-state`)
-   - optional `SUPABASE_DB_OBJECT` (default: `state/family-home.db`)
 5. Run:
    ```bash
    npm run dev
@@ -49,5 +49,5 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 ## Notes
 - If AI API is not configured, photo categorization and AI blog creation use local fallback logic.
 - If SMTP credentials are missing, the app runs but email sends are logged instead of sent.
-- If Supabase Storage is configured, uploaded images are stored in Supabase Storage bucket.
-- If Supabase Storage is configured, SQLite DB is snapshotted to `SUPABASE_DB_BUCKET/SUPABASE_DB_OBJECT` for Vercel persistence.
+- Uploaded images are stored in Supabase Storage bucket.
+- App data is stored directly in Supabase Postgres.

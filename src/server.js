@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('express-async-errors');
 
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +17,10 @@ const app = express();
 const PORT = process.env.PORT || 3010;
 const HOST = process.env.HOST || '127.0.0.1';
 const isVercel = process.env.VERCEL === '1';
-const dbReady = initDb();
+const dbReady = initDb().catch((error) => {
+  // keep a handled rejection so serverless cold-start does not emit unhandled promise warnings
+  throw error;
+});
 
 const uploadStaticRoot = isVercel
   ? path.join('/tmp', 'family-home-uploads')

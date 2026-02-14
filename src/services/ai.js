@@ -1,8 +1,8 @@
 const { db, getOrCreateCategory } = require('../db');
 const { slugify } = require('./text');
 
-function settingsMap() {
-  const rows = db.prepare('SELECT setting_key, setting_value FROM api_settings').all();
+async function settingsMap() {
+  const rows = await db.all('SELECT setting_key, setting_value FROM api_settings');
   const map = rows.reduce((acc, row) => {
     acc[row.setting_key] = row.setting_value || '';
     return acc;
@@ -20,7 +20,7 @@ function settingsMap() {
   return map;
 }
 
-function saveSettings(input = {}) {
+async function saveSettings(input = {}) {
   const allowedKeys = [
     'ai_provider',
     'ai_url',
@@ -30,17 +30,17 @@ function saveSettings(input = {}) {
     'ai_category_system_prompt'
   ];
 
-  const upsert = db.prepare(
-    `INSERT INTO api_settings (setting_key, setting_value)
-     VALUES (?, ?)
-     ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`
-  );
-
-  allowedKeys.forEach((key) => {
+  for (const key of allowedKeys) {
     if (Object.prototype.hasOwnProperty.call(input, key)) {
-      upsert.run(key, String(input[key] || '').trim());
+      await db.run(
+        `INSERT INTO api_settings (setting_key, setting_value)
+         VALUES (?, ?)
+         ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`,
+        key,
+        String(input[key] || '').trim()
+      );
     }
-  });
+  }
 }
 
 function parseJsonFromText(text = '') {
@@ -144,7 +144,7 @@ async function callCustomJson({ task, systemPrompt, input, settings }) {
 }
 
 async function callConfiguredAi({ task, systemPrompt, input }) {
-  const settings = settingsMap();
+  const settings = await settingsMap();
   const provider = String(settings.ai_provider || '').toLowerCase();
 
   if (provider === 'openai' || provider === 'gpt') {
@@ -155,7 +155,7 @@ async function callConfiguredAi({ task, systemPrompt, input }) {
 }
 
 async function testAiConnection() {
-  const settings = settingsMap();
+  const settings = await settingsMap();
   const provider = String(settings.ai_provider || '').toLowerCase();
 
   if (!settings.ai_key) {
@@ -234,10 +234,10 @@ function fallbackCategory({ title = '', caption = '' }) {
 }
 
 async function categorizePhoto({ title, caption, imageUrl }) {
-  const categories = db.prepare('SELECT name FROM photo_categories ORDER BY name ASC').all();
+  const categories = await db.all('SELECT name FROM photo_categories ORDER BY name ASC');
   const categoryNames = categories.map((row) => row.name);
 
-  const settings = settingsMap();
+  const settings = await settingsMap();
   const aiResult = await callConfiguredAi({
     task: 'photo_category',
     systemPrompt:
@@ -256,7 +256,7 @@ async function categorizePhoto({ title, caption, imageUrl }) {
     : '';
 
   const selectedName = aiCategory || fallbackCategory({ title, caption });
-  const category = getOrCreateCategory(selectedName);
+  const category = await getOrCreateCategory(selectedName);
   return category;
 }
 
@@ -283,7 +283,7 @@ function fallbackBlog({ prompt, author }) {
 }
 
 async function generateBlogFromPrompt({ prompt, author }) {
-  const settings = settingsMap();
+  const settings = await settingsMap();
 
   const aiResult = await callConfiguredAi({
     task: 'blog_draft',
@@ -313,7 +313,7 @@ async function reviseBlogDraft({ instruction, draft, author }) {
     coverImage: String(draft.coverImage || '').trim()
   };
 
-  const settings = settingsMap();
+  const settings = await settingsMap();
   const aiResult = await callConfiguredAi({
     task: 'blog_revise',
     systemPrompt:
@@ -350,11 +350,15 @@ async function reviseBlogDraft({ instruction, draft, author }) {
   };
 }
 
-function uniqueBlogSlug(title) {
+async function uniqueBlogSlug(title) {
   const baseSlug = slugify(title) || 'family-blog';
   let slug = baseSlug;
   let index = 1;
-  while (db.prepare('SELECT id FROM blog_posts WHERE slug = ?').get(slug)) {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop
+    const found = await db.get('SELECT id FROM blog_posts WHERE slug = ?', slug);
+    if (!found) break;
     slug = `${baseSlug}-${index}`;
     index += 1;
   }

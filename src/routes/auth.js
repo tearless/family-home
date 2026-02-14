@@ -7,7 +7,7 @@ router.get('/member/request', (req, res) => {
   return res.redirect('/auth/member/login');
 });
 
-router.post('/member/request', (req, res) => {
+router.post('/member/request', async (req, res) => {
   const name = (req.body.name || '').trim();
   const email = (req.body.email || '').trim().toLowerCase();
 
@@ -16,16 +16,14 @@ router.post('/member/request', (req, res) => {
     return res.redirect('/auth/member/login');
   }
 
-  const approvedAccount = db
-    .prepare('SELECT is_approved FROM member_accounts WHERE email = ?')
-    .get(email);
+  const approvedAccount = await db.get('SELECT is_approved FROM member_accounts WHERE email = ?', email);
 
   if (approvedAccount && approvedAccount.is_approved === 1) {
     req.session.flash = { type: 'success', text: 'This email is already approved. Please login.' };
     return res.redirect('/auth/member/login');
   }
 
-  db.prepare(
+  await db.run(
     `INSERT INTO member_requests (name, email, status)
      VALUES (?, ?, 'pending')
      ON CONFLICT(email) DO UPDATE SET
@@ -34,14 +32,20 @@ router.post('/member/request', (req, res) => {
        created_at = datetime('now'),
        approved_at = NULL,
        approved_by = NULL`
-  ).run(name, email);
+    ,
+    name,
+    email
+  );
 
-  db.prepare(
+  await db.run(
     `INSERT INTO member_accounts (name, email, is_approved)
      VALUES (?, ?, 0)
      ON CONFLICT(email) DO UPDATE SET
        name = excluded.name`
-  ).run(name, email);
+    ,
+    name,
+    email
+  );
 
   req.session.flash = { type: 'success', text: 'Request submitted. Family will review and approve it.' };
   return res.redirect('/auth/member/login');
@@ -51,7 +55,7 @@ router.get('/member/login', (req, res) => {
   res.render('auth/member-login', { title: 'Member Login' });
 });
 
-router.post('/member/login', (req, res) => {
+router.post('/member/login', async (req, res) => {
   const memberId = (req.body.memberId || '').trim();
   const email = (req.body.email || '').trim().toLowerCase();
 
@@ -60,13 +64,13 @@ router.post('/member/login', (req, res) => {
     return res.redirect('/auth/member/login');
   }
 
-  const member = db
-    .prepare(
-      `SELECT name, email, is_approved
-       FROM member_accounts
-       WHERE lower(email) = lower(?) AND lower(name) = lower(?)`
-    )
-    .get(email, memberId);
+  const member = await db.get(
+    `SELECT name, email, is_approved
+     FROM member_accounts
+     WHERE lower(email) = lower(?) AND lower(name) = lower(?)`,
+    email,
+    memberId
+  );
 
   if (!member) {
     req.session.flash = {

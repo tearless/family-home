@@ -21,9 +21,9 @@ function uploadBlogImage(req, res, next) {
   });
 }
 
-function requirePostAuthor(req, res, next) {
+async function requirePostAuthor(req, res, next) {
   const id = Number(req.params.id);
-  const post = db.prepare('SELECT id, author FROM blog_posts WHERE id = ?').get(id);
+  const post = await db.get('SELECT id, author FROM blog_posts WHERE id = ?', id);
 
   if (!post) {
     req.session.flash = { type: 'error', text: 'Blog post not found.' };
@@ -48,15 +48,13 @@ function ensureHtmlDraft(draft = {}) {
   };
 }
 
-router.get('/manage', requireFamily, (req, res) => {
-  const posts = db
-    .prepare(
-      `SELECT id, title, slug, author, summary, cover_image, created_at
-       FROM blog_posts
-       WHERE published = 1
-       ORDER BY datetime(created_at) DESC`
-    )
-    .all();
+router.get('/manage', requireFamily, async (req, res) => {
+  const posts = await db.all(
+    `SELECT id, title, slug, author, summary, cover_image, created_at
+     FROM blog_posts
+     WHERE published = 1
+     ORDER BY datetime(created_at) DESC`
+  );
 
   const ownPosts = posts.filter((post) => post.author === req.session.familyUser.name);
 
@@ -85,15 +83,14 @@ router.get('/manage/new', requireFamily, (req, res) => {
   });
 });
 
-router.get('/manage/:id/edit', requireFamily, requirePostAuthor, (req, res) => {
+router.get('/manage/:id/edit', requireFamily, requirePostAuthor, async (req, res) => {
   const id = Number(req.params.id);
-  const source = db
-    .prepare(
-      `SELECT id, title, summary, content, content_format, cover_image
-       FROM blog_posts
-       WHERE id = ?`
-    )
-    .get(id);
+  const source = await db.get(
+    `SELECT id, title, summary, content, content_format, cover_image
+     FROM blog_posts
+     WHERE id = ?`,
+    id
+  );
 
   const post = {
     ...source,
@@ -169,7 +166,7 @@ router.post('/manage/ai/chat', requireFamily, async (req, res) => {
   });
 });
 
-router.post('/manage/create', requireFamily, (req, res) => {
+router.post('/manage/create', requireFamily, async (req, res) => {
   const title = (req.body.title || '').trim();
   const summary = (req.body.summary || '').trim();
   const content = (req.body.content || '').trim();
@@ -180,18 +177,25 @@ router.post('/manage/create', requireFamily, (req, res) => {
     return res.redirect('/blog/manage/new');
   }
 
-  const slug = uniqueBlogSlug(title);
+  const slug = await uniqueBlogSlug(title);
 
-  db.prepare(
+  await db.run(
     `INSERT INTO blog_posts (title, slug, author, summary, content, content_format, cover_image, published, updated_at)
      VALUES (?, ?, ?, ?, ?, 'html', ?, 1, datetime('now'))`
-  ).run(title, slug, req.session.familyUser.name, summary, content, coverImage);
+    ,
+    title,
+    slug,
+    req.session.familyUser.name,
+    summary,
+    content,
+    coverImage
+  );
 
   req.session.flash = { type: 'success', text: `Blog "${title}" published.` };
   return res.redirect('/blog/manage');
 });
 
-router.post('/manage/:id/update', requireFamily, requirePostAuthor, (req, res) => {
+router.post('/manage/:id/update', requireFamily, requirePostAuthor, async (req, res) => {
   const id = Number(req.params.id);
   const title = (req.body.title || '').trim();
   const summary = (req.body.summary || '').trim();
@@ -203,32 +207,36 @@ router.post('/manage/:id/update', requireFamily, requirePostAuthor, (req, res) =
     return res.redirect(`/blog/manage/${id}/edit`);
   }
 
-  db.prepare(
+  await db.run(
     `UPDATE blog_posts
      SET title = ?, summary = ?, content = ?, content_format = 'html', cover_image = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(title, summary, content, coverImage, id);
+    ,
+    title,
+    summary,
+    content,
+    coverImage,
+    id
+  );
 
   req.session.flash = { type: 'success', text: 'Blog post updated.' };
   return res.redirect('/blog/manage');
 });
 
-router.post('/manage/:id/delete', requireFamily, requirePostAuthor, (req, res) => {
+router.post('/manage/:id/delete', requireFamily, requirePostAuthor, async (req, res) => {
   const id = Number(req.params.id);
-  db.prepare('DELETE FROM blog_posts WHERE id = ?').run(id);
+  await db.run('DELETE FROM blog_posts WHERE id = ?', id);
   req.session.flash = { type: 'success', text: 'Blog post deleted.' };
   return res.redirect('/blog/manage');
 });
 
-router.get('/', (req, res) => {
-  const posts = db
-    .prepare(
-      `SELECT id, title, slug, author, summary, cover_image, created_at
-       FROM blog_posts
-       WHERE published = 1
-       ORDER BY datetime(created_at) DESC`
-    )
-    .all();
+router.get('/', async (req, res) => {
+  const posts = await db.all(
+    `SELECT id, title, slug, author, summary, cover_image, created_at
+     FROM blog_posts
+     WHERE published = 1
+     ORDER BY datetime(created_at) DESC`
+  );
 
   res.render('blog/list', {
     title: 'Blog',
@@ -236,8 +244,8 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/:slug', (req, res) => {
-  const post = db.prepare('SELECT * FROM blog_posts WHERE slug = ? AND published = 1').get(req.params.slug);
+router.get('/:slug', async (req, res) => {
+  const post = await db.get('SELECT * FROM blog_posts WHERE slug = ? AND published = 1', req.params.slug);
 
   if (!post) {
     return res.status(404).render('404', { title: 'Blog Not Found' });
