@@ -1,0 +1,154 @@
+<%- include('../partials/header') %>
+
+<section class="card reveal section-head">
+  <div class="row between">
+    <div>
+      <h1><%= mode === 'edit' ? 'Edit Blog' : 'Write Blog' %></h1>
+      <p>상단 버튼으로 AI 작업/에디터 작업을 전환하며 작성하세요.</p>
+    </div>
+    <a class="btn ghost" href="/blog/manage">목록으로</a>
+  </div>
+</section>
+
+<section class="card reveal workspace-switch-card">
+  <div class="segmented" id="workspaceTabs">
+    <button class="segment" type="button" data-workspace-tab="ai">AI 작업</button>
+    <button class="segment active" type="button" data-workspace-tab="editor">에디터 작업</button>
+  </div>
+</section>
+
+<section id="aiWorkspace" class="card reveal workspace-panel hidden-block">
+  <h2>AI Assistant</h2>
+  <p class="muted">프롬프트를 이어서 입력하며 초안을 발전시키고, 원하는 텍스트만 선택해 에디터로 넘기세요.</p>
+  <p class="muted"><strong>안내:</strong> AI 작업 탭에서는 제출되지 않습니다. 반드시 에디터 작업 탭에서 최종 제출하세요.</p>
+
+  <div class="chat-box chat-box-large" id="aiChatBox"></div>
+
+    <div class="form">
+      <label>Prompt
+        <textarea id="aiPromptInput" rows="5" placeholder="예: 이번 글을 더 생동감 있게 바꿔줘"></textarea>
+      </label>
+      <p class="muted">
+        <code>보내기</code>는 AI와 대화를 이어가며 초안을 발전시키는 버튼입니다.
+        <code>AI 초안 전체를 에디터로 가져가기</code>는
+        최신 초안의 제목/요약/커버/본문을 에디터로 넘깁니다.
+      </p>
+      <div class="row">
+        <button type="button" class="btn" id="aiSendBtn">보내기</button>
+        <button type="button" class="btn ghost" id="aiInsertLatestBtn">AI 초안 전체를 에디터로 가져가기</button>
+      </div>
+    </div>
+</section>
+
+<section id="editorWorkspace" class="card reveal workspace-panel">
+  <form method="post" action="<%= formAction %>" class="form" id="blogEditorForm">
+    <label>Title
+      <input name="title" id="postTitle" value="<%= post.title %>" required />
+    </label>
+
+    <label>Summary
+      <input name="summary" id="postSummary" value="<%= post.summary %>" required />
+    </label>
+
+    <label>Cover Image URL
+      <input name="coverImage" id="postCoverImage" value="<%= post.cover_image || '' %>" />
+    </label>
+    <div class="row">
+      <input type="file" id="coverImageUpload" accept="image/*" />
+      <button type="button" class="btn ghost small" id="coverUploadBtn">업로드 후 크롭</button>
+    </div>
+    <img id="coverPreview" class="cover-preview hidden-block" alt="cover preview" />
+    <section id="coverCropSection" class="cover-crop hidden-block">
+      <p class="muted">커버 규격은 16:9(1200x675)입니다. 확대 후 마우스로 드래그해 위치를 맞춰 저장하세요.</p>
+      <canvas id="coverCropCanvas" class="cover-crop-canvas" width="1200" height="675"></canvas>
+      <div class="cover-crop-controls">
+        <label>확대
+          <input type="range" id="coverZoomRange" min="1" max="3" step="0.01" value="1" />
+        </label>
+      </div>
+      <div class="row">
+        <button type="button" class="btn ghost small" id="coverResetCropBtn">초기화</button>
+        <button type="button" class="btn small" id="coverApplyCropBtn">크롭 적용 후 저장</button>
+      </div>
+    </section>
+
+    <div class="segmented" id="editorModeTabs">
+      <button class="segment active" type="button" data-editor-mode="quill">Quill Rich Editor (Free)</button>
+      <button class="segment" type="button" data-editor-mode="html">HTML Source (Free)</button>
+    </div>
+
+    <div class="row">
+      <input type="file" id="editorImageUpload" accept="image/*" />
+      <button type="button" class="btn ghost small" id="editorUploadBtn">이미지 업로드 후 삽입</button>
+    </div>
+
+    <div id="quillEditorWrap">
+      <div id="quillToolbar">
+        <span class="ql-formats">
+          <select class="ql-header">
+            <option selected></option>
+            <option value="1"></option>
+            <option value="2"></option>
+          </select>
+          <select class="ql-size"></select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-bold"></button>
+          <button class="ql-italic"></button>
+          <button class="ql-underline"></button>
+          <button class="ql-strike"></button>
+        </span>
+        <span class="ql-formats">
+          <select class="ql-color"></select>
+          <select class="ql-background"></select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-list" value="ordered"></button>
+          <button class="ql-list" value="bullet"></button>
+          <button class="ql-align" value=""></button>
+          <button class="ql-align" value="center"></button>
+          <button class="ql-align" value="right"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-link"></button>
+          <button class="ql-image"></button>
+          <button class="ql-clean"></button>
+        </span>
+      </div>
+      <div id="quillEditor"></div>
+    </div>
+
+    <div id="htmlEditorWrap" class="hidden-block">
+      <label>HTML Source
+        <textarea id="htmlSourceEditor" rows="16"></textarea>
+      </label>
+    </div>
+
+    <textarea name="content" id="postContentField" class="hidden-block"></textarea>
+
+    <div class="row editor-actions">
+      <button class="btn" id="editorSubmitBtn" type="submit"><%= submitLabel %></button>
+      <% if (mode === 'edit') { %>
+        <a class="btn ghost" href="/blog/manage">취소</a>
+      <% } %>
+    </div>
+  </form>
+</section>
+
+<script>
+  window.__blogEditorInitial = <%- JSON.stringify({
+    mode,
+    post: {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      content: post.content,
+      coverImage: post.cover_image || ''
+    }
+  }) %>;
+</script>
+<link rel="stylesheet" href="/vendor/quill/quill.snow.css" />
+<script src="/vendor/quill/quill.js"></script>
+<script defer src="/js/blog-editor.js"></script>
+
+<%- include('../partials/footer') %>

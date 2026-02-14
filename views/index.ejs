@@ -1,0 +1,75 @@
+<%- include('partials/header') %>
+
+<div class="home-page-shell">
+<section
+  class="landing-hero reveal home-section <%= landingBackgroundImage ? 'with-hero-bg-image' : '' %>"
+  <% if (landingBackgroundImage) { %>style="--hero-bg-image: url('<%= landingBackgroundImage %>');"<% } %>
+>
+  <div class="hero-text">
+    <p class="eyebrow">Family Home</p>
+    <h1>Capture the days we want to remember.</h1>
+    <p class="hero-sub">
+      Anton, Olivia, Eliana의 소중한 순간을 사진과 블로그로 기록하는 공간입니다.
+      앨범은 멤버 인증 후 접근할 수 있고, 가족 계정은 바로 관리할 수 있어요.
+    </p>
+    <div class="hero-links">
+      <a class="btn" href="/album">Open Album</a>
+      <a class="btn ghost" href="/blog">Read Blog</a>
+    </div>
+  </div>
+  <div id="hero-stage" class="hero-stage" aria-label="Family photos animation"></div>
+</section>
+
+<section class="grid members home-members reveal home-section">
+  <% members.forEach((member) => { %>
+    <article class="card member-card member-tone-<%= member.name.toLowerCase() %>">
+      <div class="member-avatar-slot">
+        <% if (member.profileImage) { %>
+          <img class="member-avatar-image" src="<%= member.profileImage %>" alt="<%= member.name %> profile" loading="lazy" />
+        <% } else { %>
+          <span class="member-avatar-initial"><%= member.name.charAt(0) %></span>
+        <% } %>
+      </div>
+      <h2><%= member.name %></h2>
+      <p class="member-bio">
+        <%= member.bio %>
+      </p>
+    </article>
+  <% }) %>
+</section>
+
+<section class="card updates reveal home-section">
+  <div class="section-head">
+    <h2>Recent Updates</h2>
+    <p>최근 등록된 사진과 블로그를 한눈에 확인하세요.</p>
+  </div>
+
+  <% if (recentUpdates.length === 0) { %>
+    <p class="muted">업데이트가 아직 없습니다.</p>
+  <% } %>
+
+  <div class="update-grid">
+    <% recentUpdates.forEach((item) => { %>
+      <article class="update-card">
+        <% if (item.imageUrl) { %>
+          <img src="<%= item.imageUrl %>" alt="<%= item.title %>" loading="lazy" />
+        <% } else { %>
+          <div class="update-placeholder"><%= item.type === 'blog' ? 'BLOG' : 'PHOTO' %></div>
+        <% } %>
+        <div class="update-meta">
+          <span class="pill"><%= item.type === 'blog' ? 'Blog' : 'Photo' %></span>
+          <h3><a href="<%= item.href %>"><%= item.title %></a></h3>
+          <p><%= item.summary %></p>
+        </div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+</div>
+
+<script>
+  window.__heroPhotos = <%- JSON.stringify(heroPhotos || []) %>;
+</script>
+<script defer src="/js/home.js"></script>
+
+<%- include('partials/footer') %>

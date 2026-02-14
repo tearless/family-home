@@ -1,0 +1,36 @@
+<%- include('../partials/header') %>
+
+<section class="card reveal section-head">
+  <div class="row between">
+    <div>
+      <h1>Family Blog</h1>
+      <p>가족의 기록과 생각을 블로그 형태로 모아봅니다.</p>
+    </div>
+    <% if (familyUser) { %>
+      <a class="btn" href="/blog/manage">Manage Blog</a>
+    <% } %>
+  </div>
+</section>
+
+<section class="update-grid reveal">
+  <% if (posts.length === 0) { %>
+    <p class="muted">등록된 블로그 글이 없습니다.</p>
+  <% } %>
+
+  <% posts.forEach((post) => { %>
+    <article class="update-card">
+      <% if (post.cover_image) { %>
+        <img src="<%= post.cover_image %>" alt="<%= post.title %>" loading="lazy" />
+      <% } else { %>
+        <div class="update-placeholder">BLOG</div>
+      <% } %>
+      <div class="update-meta">
+        <span class="pill">Blog</span>
+        <h3><a href="/blog/<%= post.slug %>"><%= post.title %></a></h3>
+        <p><%= post.summary %></p>
+      </div>
+    </article>
+  <% }) %>
+</section>
+
+<%- include('../partials/footer') %>

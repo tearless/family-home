@@ -1,0 +1,91 @@
+<%- include('../partials/header') %>
+
+<section class="card reveal section-head">
+  <div class="row between">
+    <div>
+      <h1>Photo Management</h1>
+      <p>사진 등록은 팝업에서 처리하고, 작성자 본인만 삭제할 수 있습니다.</p>
+    </div>
+    <button class="btn" type="button" data-open-photo-modal>새 사진 등록</button>
+  </div>
+</section>
+
+<section class="insta-layout reveal">
+  <aside class="insta-sidebar left card">
+    <h3>Current Categories</h3>
+    <div class="tag-wrap">
+      <% categories.forEach((category) => { %>
+        <span class="pill"><%= category.name %></span>
+      <% }) %>
+    </div>
+  </aside>
+
+  <main class="insta-feed">
+    <% if (recentPhotos.length === 0) { %>
+      <article class="card"><p class="muted">등록된 사진이 없습니다.</p></article>
+    <% } %>
+
+    <% recentPhotos.forEach((photo) => { %>
+      <article class="insta-post card">
+        <header class="insta-post-head">
+          <div>
+            <strong><%= photo.title %></strong>
+            <span class="pill"><%= photo.category_name || 'Uncategorized' %></span>
+          </div>
+          <small><%= photo.created_by || 'system' %></small>
+        </header>
+
+        <img class="insta-image" src="<%= photo.image_url %>" alt="<%= photo.title %>" loading="lazy" />
+
+        <div class="insta-post-body">
+          <p><%= photo.caption %></p>
+          <% if (photo.created_by === currentFamilyName) { %>
+            <form method="post" action="/album/manage/photos/<%= photo.id %>/delete">
+              <button class="btn ghost small" type="submit">삭제</button>
+            </form>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </main>
+
+  <aside class="insta-sidebar right card">
+    <h3>Rule</h3>
+    <p class="muted">삭제는 작성자에게만 허용됩니다.</p>
+    <a class="btn ghost" href="/album">앨범 보기</a>
+  </aside>
+</section>
+
+<dialog class="modal" id="photoManageModal">
+  <form method="post" action="/album/manage/photos" class="modal-content form" enctype="multipart/form-data">
+    <div class="row between">
+      <h2>Add Photo</h2>
+      <button type="button" class="btn ghost small" data-close-photo-modal>닫기</button>
+    </div>
+
+    <div class="segmented">
+      <button type="button" class="segment active" data-source-tab="url">URL 입력</button>
+      <button type="button" class="segment" data-source-tab="upload">파일 업로드</button>
+    </div>
+
+    <input type="hidden" name="sourceType" value="url" id="photoSourceType" />
+
+    <label>Photo Title <input name="title" required /></label>
+    <label>Caption <input name="caption" /></label>
+
+    <div id="photoUrlField">
+      <label>Image URL <input name="imageUrl" /></label>
+    </div>
+
+    <div id="photoUploadField" class="hidden-block">
+      <label>Image File <input name="photoFile" type="file" accept="image/*" /></label>
+    </div>
+
+    <label>Highlight Order <input name="highlightOrder" type="number" value="0" /></label>
+    <button class="btn" type="submit">Upload + Auto Categorize</button>
+  </form>
+</dialog>
+
+<script defer src="/js/album-manage.js"></script>
+
+<%- include('../partials/footer') %>

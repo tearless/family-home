@@ -1,0 +1,113 @@
+<%- include('../partials/header') %>
+
+<section class="insta-layout reveal">
+  <aside class="insta-sidebar left card">
+    <h2>Album</h2>
+    <p class="muted">카테고리별로 가족 사진을 탐색하세요.</p>
+
+    <div class="category-list">
+      <a class="filter-pill <%= !selectedCategory ? 'active' : '' %>" href="/album">All</a>
+      <% categories.forEach((category) => { %>
+        <a class="filter-pill <%= selectedCategory === category.slug ? 'active' : '' %>" href="/album?category=<%= category.slug %>">
+          <%= category.name %> <span>(<%= category.photo_count %>)</span>
+        </a>
+      <% }) %>
+    </div>
+
+    <% if (familyUser) { %>
+      <a class="btn" href="/album/manage">사진 관리 열기</a>
+    <% } %>
+  </aside>
+
+  <main class="insta-feed">
+    <% if (photos.length === 0) { %>
+      <article class="card">
+        <p class="muted">선택한 카테고리에 사진이 없습니다.</p>
+      </article>
+    <% } %>
+
+    <% photos.forEach((photo) => { %>
+      <article class="insta-post card reveal">
+        <header class="insta-post-head">
+          <div>
+            <strong><%= photo.title %></strong>
+            <% if (photo.category_name) { %>
+              <span class="pill"><%= photo.category_name %></span>
+            <% } %>
+          </div>
+          <small><%= photo.created_by || 'family' %></small>
+        </header>
+
+        <img class="insta-image" src="<%= photo.image_url %>" alt="<%= photo.title %>" loading="lazy" />
+
+        <div class="insta-post-body">
+          <p><%= photo.caption %></p>
+
+          <div class="reaction-wrap">
+            <form method="post" action="/album/emoji" class="emoji-form">
+              <input type="hidden" name="photoId" value="<%= photo.id %>" />
+              <% allowedEmojis.forEach((emoji) => { %>
+                <button class="emoji-btn" type="submit" name="emoji" value="<%= emoji %>"><%= emoji %></button>
+              <% }) %>
+            </form>
+            <div class="reaction-counts">
+              <% const photoReactions = reactions[photo.id] || {}; %>
+              <% Object.keys(photoReactions).forEach((emoji) => { %>
+                <span><%= emoji %> <%= photoReactions[emoji] %></span>
+              <% }) %>
+            </div>
+          </div>
+
+          <form method="post" action="/album/comment" class="form">
+            <input type="hidden" name="photoId" value="<%= photo.id %>" />
+            <div class="comment-compose">
+              <input
+                class="comment-input"
+                type="text"
+                name="content"
+                maxlength="400"
+                placeholder="댓글을 남겨주세요"
+                required
+              />
+              <button class="btn comment-post-btn" type="submit">Post</button>
+            </div>
+          </form>
+
+          <div class="comment-list">
+            <% (commentsByPhoto[photo.id] || []).forEach((comment) => { %>
+              <div class="comment-item">
+                <strong><%= comment.display_name %></strong>
+                <p><%= comment.content %></p>
+                <div class="comment-reaction-wrap">
+                  <form method="post" action="/album/comment-reaction" class="emoji-form comment-emoji-form">
+                    <input type="hidden" name="commentId" value="<%= comment.id %>" />
+                    <% allowedEmojis.forEach((emoji) => { %>
+                      <button class="emoji-btn" type="submit" name="emoji" value="<%= emoji %>"><%= emoji %></button>
+                    <% }) %>
+                  </form>
+                  <div class="reaction-counts">
+                    <% const perComment = commentReactions[comment.id] || {}; %>
+                    <% Object.keys(perComment).forEach((emoji) => { %>
+                      <span><%= emoji %> <%= perComment[emoji] %></span>
+                    <% }) %>
+                  </div>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </article>
+    <% }) %>
+  </main>
+
+  <aside class="insta-sidebar right card">
+    <h3>Tips</h3>
+    <ul class="feature-list">
+      <li>가족 계정은 관리자 로그인 후 앨범에 바로 접근할 수 있습니다.</li>
+      <li>일반 사용자는 멤버 승인을 받은 뒤 멤버 로그인으로 접근합니다.</li>
+      <li>멤버 계정은 앨범에서 좋아요/댓글 참여가 가능합니다.</li>
+    </ul>
+  </aside>
+</section>
+
+<%- include('../partials/footer') %>

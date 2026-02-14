@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title %> | family-home</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <script defer src="/js/app.js"></script>
+  </head>
+  <body>
+    <div class="background-glow"></div>
+    <header class="site-header">
+      <a class="brand" href="/">family-home</a>
+      <nav class="menu">
+        <a href="/">Home</a>
+        <a href="/blog">Blog</a>
+        <a href="/album">Photo Album</a>
+        <a href="/auth/member/login">Member Login</a>
+        <a href="/admin">Admin</a>
+      </nav>
+      <div class="status-bar">
+        <% if (memberUser) { %>
+          <span class="badge">Member: <%= memberUser.name %></span>
+          <form method="post" action="/auth/member/logout">
+            <button class="btn ghost">Member Logout</button>
+          </form>
+        <% } %>
+        <% if (familyUser) { %>
+          <span class="badge">Family: <%= familyUser.name %></span>
+          <form method="post" action="/admin/logout">
+            <button class="btn ghost">Admin Logout</button>
+          </form>
+        <% } %>
+      </div>
+    </header>
+    <% if (flash) { %>
+      <div class="flash <%= flash.type %>"><%= flash.text %></div>
+    <% } %>
+    <main class="content">

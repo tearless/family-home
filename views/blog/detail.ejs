@@ -1,0 +1,14 @@
+<%- include('../partials/header') %>
+
+<article class="card blog-post reveal">
+  <p class="eyebrow">Blog</p>
+  <h1><%= post.title %></h1>
+  <p class="muted"><strong><%= post.author %></strong> · <%= post.created_at %></p>
+  <% if (post.cover_image) { %>
+    <img class="blog-cover" src="<%= post.cover_image %>" alt="<%= post.title %>" loading="lazy" />
+  <% } %>
+  <p><%= post.summary %></p>
+  <div class="blog-content"><%- htmlContent %></div>
+</article>
+
+<%- include('../partials/footer') %>

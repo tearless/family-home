@@ -1,0 +1,65 @@
+<%- include('../partials/header') %>
+<section class="card narrow reveal">
+  <h1>Member Login</h1>
+  <p>승인된 멤버는 아이디와 이메일만으로 앨범에 입장할 수 있습니다.</p>
+
+  <form method="post" action="/auth/member/login" class="form">
+    <label>ID
+      <input type="text" name="memberId" required />
+    </label>
+    <label>Email
+      <input type="email" name="email" required />
+    </label>
+    <div class="row">
+      <button class="btn" type="submit">Enter Album</button>
+      <button class="btn ghost" type="button" id="openRequestDialogBtn">신청하기</button>
+    </div>
+  </form>
+
+  <p class="muted">승인 전이면 아래 신청 팝업에서 아이디/이메일을 남겨주세요.</p>
+</section>
+
+<dialog id="memberRequestDialog" class="modal">
+  <div class="modal-content">
+    <div class="row between">
+      <h2>Membership Request</h2>
+      <button type="button" class="btn ghost small" id="closeRequestDialogBtn">닫기</button>
+    </div>
+
+    <p class="muted">아이디와 이메일을 보내면 가족이 Admin에서 승인합니다.</p>
+
+    <form method="post" action="/auth/member/request" class="form">
+      <label>ID
+        <input type="text" name="name" required />
+      </label>
+      <label>Email
+        <input type="email" name="email" required />
+      </label>
+      <div class="row">
+        <button class="btn" type="submit">신청</button>
+        <button class="btn ghost" type="button" id="cancelRequestDialogBtn">취소</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  (function initMemberRequestDialog() {
+    const dialog = document.getElementById('memberRequestDialog');
+    const openBtn = document.getElementById('openRequestDialogBtn');
+    const closeBtn = document.getElementById('closeRequestDialogBtn');
+    const cancelBtn = document.getElementById('cancelRequestDialogBtn');
+
+    if (!dialog || !openBtn || typeof dialog.showModal !== 'function') return;
+
+    openBtn.addEventListener('click', () => dialog.showModal());
+
+    function closeDialog() {
+      if (dialog.open) dialog.close();
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeDialog);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeDialog);
+  })();
+</script>
+<%- include('../partials/footer') %>

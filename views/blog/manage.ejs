@@ -1,0 +1,69 @@
+<%- include('../partials/header') %>
+
+<section class="card reveal section-head">
+  <div class="row between">
+    <div>
+      <h1>Blog Management</h1>
+      <p>직접 작성/수정은 전용 페이지에서 진행합니다.</p>
+    </div>
+    <a class="btn" href="/blog/manage/new">새 글 작성</a>
+  </div>
+</section>
+
+<section class="insta-layout reveal blog-manage-layout">
+  <aside class="insta-sidebar left card">
+    <h3>내 작성글</h3>
+    <% if (ownPosts.length === 0) { %>
+      <p class="muted">아직 작성한 글이 없습니다.</p>
+    <% } %>
+    <ul class="project-list">
+      <% ownPosts.forEach((post) => { %>
+        <li>
+          <a href="/blog/<%= post.slug %>"><%= post.title %></a>
+          <a class="btn ghost small" href="/blog/manage/<%= post.id %>/edit">수정</a>
+        </li>
+      <% }) %>
+    </ul>
+
+    <div class="rule-block">
+      <h3>Rule</h3>
+      <p class="muted">삭제/수정은 작성자 본인만 가능합니다.</p>
+    </div>
+  </aside>
+
+  <main class="insta-feed">
+    <% if (posts.length === 0) { %>
+      <article class="card"><p class="muted">등록된 글이 없습니다.</p></article>
+    <% } %>
+
+    <% posts.forEach((post) => { %>
+      <article class="insta-post card">
+        <header class="insta-post-head">
+          <div>
+            <strong><a href="/blog/<%= post.slug %>"><%= post.title %></a></strong>
+            <span class="pill">by <%= post.author %></span>
+          </div>
+          <small><%= post.created_at %></small>
+        </header>
+
+        <% if (post.cover_image) { %>
+          <img class="insta-image" src="<%= post.cover_image %>" alt="<%= post.title %>" loading="lazy" />
+        <% } %>
+
+        <div class="insta-post-body">
+          <p><%= post.summary %></p>
+          <% if (post.author === currentFamilyName) { %>
+            <div class="row">
+              <a class="btn ghost small" href="/blog/manage/<%= post.id %>/edit">수정</a>
+              <form method="post" action="/blog/manage/<%= post.id %>/delete">
+                <button class="btn ghost small" type="submit">삭제</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </main>
+</section>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,17 @@
+<%- include('../partials/header') %>
+<section class="card narrow reveal">
+  <h1>Family Admin Login</h1>
+  <p>For Anton, Olivia, and Eliana only. Initial password: 0000</p>
+  <form method="post" action="/admin/login" class="form">
+    <label>Name
+      <select name="name" required>
+        <option value="Anton">Anton</option>
+        <option value="Olivia">Olivia</option>
+        <option value="Eliana">Eliana</option>
+      </select>
+    </label>
+    <label>Password <input type="password" name="password" required /></label>
+    <button class="btn" type="submit">Login</button>
+  </form>
+</section>
+<%- include('../partials/footer') %>
