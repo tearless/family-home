@@ -841,6 +841,7 @@ select:focus {
 .family-profile-photo {
   width: 84px;
   height: 84px;
+  justify-self: center;
   border-radius: 50%;
   overflow: hidden;
   background: rgba(223, 240, 255, 0.92);
