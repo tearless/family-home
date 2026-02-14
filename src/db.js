@@ -5,6 +5,7 @@ const { slugify } = require('./services/text');
 const connectionString = process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || '';
 const sslEnabled = String(process.env.SUPABASE_DB_SSL || 'true').toLowerCase() !== 'false';
 const sslMode = String(process.env.DB_SSL_MODE || 'no-verify').trim().toLowerCase();
+const allowSelfSigned = String(process.env.DB_ALLOW_SELF_SIGNED || 'true').toLowerCase() !== 'false';
 const connectionTimeoutMillis = Number(process.env.DB_CONNECTION_TIMEOUT_MS || 8000);
 const statementTimeout = Number(process.env.DB_STATEMENT_TIMEOUT_MS || 12000);
 const queryTimeout = Number(process.env.DB_QUERY_TIMEOUT_MS || 12000);
@@ -19,17 +20,38 @@ function withSslMode(url, mode) {
   return `${raw}${separator}sslmode=${encodeURIComponent(mode)}`;
 }
 
+function stripSslParams(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return raw;
+
+  try {
+    const parsed = new URL(raw);
+    ['sslmode', 'sslcert', 'sslkey', 'sslrootcert'].forEach((key) => parsed.searchParams.delete(key));
+    return parsed.toString();
+  } catch (_) {
+    return raw
+      .replace(/([?&])(sslmode|sslcert|sslkey|sslrootcert)=[^&]*/gi, '$1')
+      .replace(/\?&/, '?')
+      .replace(/[?&]$/, '');
+  }
+}
+
 function buildPoolConfig() {
   if (!connectionString) return null;
-  const preparedConnectionString = sslEnabled
+  let preparedConnectionString = sslEnabled
     ? withSslMode(connectionString, sslMode || 'no-verify')
     : connectionString;
+  preparedConnectionString = stripSslParams(preparedConnectionString);
+
+  if (sslEnabled && allowSelfSigned && !process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
 
   return {
     connectionString: preparedConnectionString,
     ssl: sslEnabled
       ? {
-          rejectUnauthorized: false,
+          rejectUnauthorized: !allowSelfSigned,
           requestCert: false
         }
       : false,
