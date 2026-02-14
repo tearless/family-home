@@ -37,6 +37,7 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
 4. Configure Supabase env values:
    - `SUPABASE_DB_URL` (Supabase Postgres connection string)
    - `SUPABASE_DB_SSL` (`true` by default)
+   - `DB_SSL_MODE` (`no-verify` by default for Supabase TLS chain compatibility on some runtimes)
    - `DB_CONNECTION_TIMEOUT_MS` (optional, default `8000`)
    - `DB_STATEMENT_TIMEOUT_MS` (optional, default `12000`)
    - `DB_QUERY_TIMEOUT_MS` (optional, default `12000`)

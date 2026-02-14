@@ -4,18 +4,43 @@ const { slugify } = require('./services/text');
 
 const connectionString = process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || '';
 const sslEnabled = String(process.env.SUPABASE_DB_SSL || 'true').toLowerCase() !== 'false';
+const sslMode = String(process.env.DB_SSL_MODE || 'no-verify').trim().toLowerCase();
 const connectionTimeoutMillis = Number(process.env.DB_CONNECTION_TIMEOUT_MS || 8000);
 const statementTimeout = Number(process.env.DB_STATEMENT_TIMEOUT_MS || 12000);
 const queryTimeout = Number(process.env.DB_QUERY_TIMEOUT_MS || 12000);
 
+function withSslMode(url, mode) {
+  const raw = String(url || '').trim();
+  if (!raw || !mode) return raw;
+  if (/[?&]sslmode=/i.test(raw)) {
+    return raw.replace(/([?&]sslmode=)[^&]*/i, `$1${encodeURIComponent(mode)}`);
+  }
+  const separator = raw.includes('?') ? '&' : '?';
+  return `${raw}${separator}sslmode=${encodeURIComponent(mode)}`;
+}
+
+function buildPoolConfig() {
+  if (!connectionString) return null;
+  const preparedConnectionString = sslEnabled
+    ? withSslMode(connectionString, sslMode || 'no-verify')
+    : connectionString;
+
+  return {
+    connectionString: preparedConnectionString,
+    ssl: sslEnabled
+      ? {
+          rejectUnauthorized: false,
+          requestCert: false
+        }
+      : false,
+    connectionTimeoutMillis: Number.isFinite(connectionTimeoutMillis) ? connectionTimeoutMillis : 8000,
+    statement_timeout: Number.isFinite(statementTimeout) ? statementTimeout : 12000,
+    query_timeout: Number.isFinite(queryTimeout) ? queryTimeout : 12000
+  };
+}
+
 const pool = connectionString
-  ? new Pool({
-      connectionString,
-      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
-      connectionTimeoutMillis: Number.isFinite(connectionTimeoutMillis) ? connectionTimeoutMillis : 8000,
-      statement_timeout: Number.isFinite(statementTimeout) ? statementTimeout : 12000,
-      query_timeout: Number.isFinite(queryTimeout) ? queryTimeout : 12000
-    })
+  ? new Pool(buildPoolConfig())
   : null;
 
 let initPromise = null;
