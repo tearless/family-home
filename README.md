@@ -49,6 +49,8 @@ Blue-tone iOS-style family website for Anton, Olivia, and Eliana.
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_UPLOAD_BUCKET` (default: `family-home-media`)
    - `SUPABASE_SIGNED_URL_EXPIRES_IN` (seconds, default: `259200`)
+   - `MEDIA_SIGNED_URL_CACHE_MS` (in-memory signed URL cache window, default `120000`)
+   - `MEDIA_SIGNED_URL_CACHE_MAX` (max cache entries, default `1000`)
    - Supabase Storage bucket visibility: set the upload bucket to **Private**.
    - Session settings:
      - `SESSION_TTL_MS` (cookie max age, default 6h)

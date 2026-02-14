@@ -180,15 +180,29 @@ router.get('/', requireAlbumAccess, async (req, res) => {
   })));
 
   const commentsByPhoto = {};
-  for (const photo of photos) {
-    // eslint-disable-next-line no-await-in-loop
-    commentsByPhoto[photo.id] = await db.all(
-      `SELECT * FROM album_comments
-       WHERE photo_id = ? AND deleted_at IS NULL
-       ORDER BY datetime(created_at) DESC, id DESC
-       LIMIT 30`,
-      photo.id
+  const photoIds = photos.map((photo) => photo.id).filter((id) => Number.isInteger(id));
+  photoIds.forEach((id) => {
+    commentsByPhoto[id] = [];
+  });
+
+  if (photoIds.length > 0) {
+    const commentRows = await db.all(
+      `SELECT photo_id, id, parent_comment_id, member_email, display_name, content, content_type, filtered, deleted_at, created_at
+       FROM (
+         SELECT c.*,
+                ROW_NUMBER() OVER (PARTITION BY c.photo_id ORDER BY c.created_at DESC, c.id DESC) AS rn
+         FROM album_comments c
+         WHERE c.photo_id = ANY(?::int[]) AND c.deleted_at IS NULL
+       ) ranked
+       WHERE rn <= 30
+       ORDER BY photo_id ASC, created_at DESC, id DESC`,
+      photoIds
     );
+
+    commentRows.forEach((row) => {
+      if (!commentsByPhoto[row.photo_id]) commentsByPhoto[row.photo_id] = [];
+      commentsByPhoto[row.photo_id].push(row);
+    });
   }
 
   const reactionRows = await db.all(

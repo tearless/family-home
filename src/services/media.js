@@ -7,6 +7,10 @@ const {
 } = require('./supabase');
 
 const STORAGE_REF_PREFIX = 'sb://';
+const signedUrlCacheMs = Number(process.env.MEDIA_SIGNED_URL_CACHE_MS || 120000);
+const signedUrlCache = new Map();
+const signedUrlInFlight = new Map();
+const signedUrlCacheMax = Number(process.env.MEDIA_SIGNED_URL_CACHE_MAX || 1000);
 
 function safeExtname(file) {
   const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
@@ -81,19 +85,53 @@ async function resolveImageUrl(input, options = {}) {
   const parsed = parseStorageRef(raw);
   if (!parsed) return raw;
 
+  const expiresIn = Number(options.expiresIn) > 0 ? Math.floor(Number(options.expiresIn)) : undefined;
+  const cacheKey = `${raw}|${expiresIn || ''}`;
+  const now = Date.now();
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > now && cached.url) {
+    return cached.url;
+  }
+
+  const inFlight = signedUrlInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const task = (async () => {
+    try {
+      const url = await createSignedUrl({
+        bucket: parsed.bucket,
+        objectPath: parsed.objectPath,
+        expiresIn
+      });
+
+      if (url && signedUrlCacheMs > 0) {
+        signedUrlCache.set(cacheKey, {
+          url,
+          expiresAt: now + signedUrlCacheMs
+        });
+
+        if (signedUrlCache.size > signedUrlCacheMax) {
+          const oldestKey = signedUrlCache.keys().next().value;
+          if (oldestKey) signedUrlCache.delete(oldestKey);
+        }
+      }
+      return url;
+    } catch (_) {
+      return '';
+    } finally {
+      signedUrlInFlight.delete(cacheKey);
+    }
+  })();
+
+  signedUrlInFlight.set(cacheKey, task);
+
   try {
-    return await createSignedUrl({
-      bucket: parsed.bucket,
-      objectPath: parsed.objectPath,
-      expiresIn: options.expiresIn
-    });
+    return await task;
   } catch (_) {
     return '';
   }
-}
-
-async function resolveImageUrls(items, options = {}) {
-  return Promise.all((items || []).map((item) => resolveImageUrl(item, options)));
 }
 
 async function resolveHtmlImageSources(html, options = {}) {
@@ -161,7 +199,6 @@ module.exports = {
   isStorageRef,
   parseStorageRef,
   resolveImageUrl,
-  resolveImageUrls,
   resolveHtmlImageSources,
   normalizeHtmlForStorage,
   uploadImageFile
