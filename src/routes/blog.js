@@ -237,8 +237,14 @@ router.post('/manage/:id/update', requireFamily, requirePostAuthor, async (req, 
   return res.redirect('/blog/manage');
 });
 
-router.post('/manage/:id/delete', requireFamily, requirePostAuthor, async (req, res) => {
+router.post('/manage/:id/delete', requireFamily, async (req, res) => {
   const id = Number(req.params.id);
+  const post = await db.get('SELECT id FROM blog_posts WHERE id = ?', id);
+  if (!post) {
+    req.session.flash = { type: 'error', text: 'Blog post not found.' };
+    return res.redirect('/blog/manage');
+  }
+
   await db.run('DELETE FROM blog_posts WHERE id = ?', id);
   req.session.flash = { type: 'success', text: 'Blog post deleted.' };
   return res.redirect('/blog/manage');

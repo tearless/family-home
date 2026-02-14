@@ -525,6 +525,12 @@ select:focus {
   box-shadow: none;
 }
 
+.btn.danger {
+  background: linear-gradient(130deg, #da3c66, #c62f58);
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(198, 47, 88, 0.28);
+}
+
 .btn.small {
   font-size: 0.76rem;
   padding: 0.35rem 0.58rem;
@@ -750,6 +756,42 @@ select:focus {
   margin-bottom: 0.55rem;
 }
 
+.post-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+}
+
+.inline-delete-form {
+  margin: 0;
+}
+
+.icon-trash-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(127, 178, 236, 0.42);
+  background: rgba(255, 255, 255, 0.96);
+  color: #4d698c;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.icon-trash-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.icon-trash-btn:hover {
+  border-color: rgba(206, 70, 105, 0.42);
+  color: #bb2f57;
+  background: rgba(255, 240, 245, 0.95);
+}
+
 .insta-image {
   width: 100%;
   max-height: 580px;
@@ -825,6 +867,23 @@ select:focus {
   padding: 1rem;
   overflow-y: auto;
   max-height: 88vh;
+}
+
+.confirm-modal {
+  width: min(420px, 90vw);
+}
+
+.confirm-modal .modal-content {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.confirm-modal h2 {
+  margin: 0;
+}
+
+.confirm-actions {
+  justify-content: flex-end;
 }
 
 .family-profile-grid {

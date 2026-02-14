@@ -119,15 +119,10 @@ router.post('/manage/photos', requireFamily, uploadPhotoMiddleware, async (req, 
 
 router.post('/manage/photos/:id/delete', requireFamily, async (req, res) => {
   const id = Number(req.params.id);
-  const photo = await db.get('SELECT id, created_by FROM album_photos WHERE id = ?', id);
+  const photo = await db.get('SELECT id FROM album_photos WHERE id = ?', id);
 
   if (!photo) {
     req.session.flash = { type: 'error', text: 'Photo not found.' };
-    return res.redirect('/album/manage');
-  }
-
-  if (photo.created_by !== req.session.familyUser.name) {
-    req.session.flash = { type: 'error', text: 'Only the author can delete this photo.' };
     return res.redirect('/album/manage');
   }
 
