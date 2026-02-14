@@ -186,17 +186,18 @@ router.get('/', requireAlbumAccess, async (req, res) => {
   });
 
   if (photoIds.length > 0) {
+    const inPlaceholders = photoIds.map(() => '?').join(', ');
     const commentRows = await db.all(
       `SELECT photo_id, id, parent_comment_id, member_email, display_name, content, content_type, filtered, deleted_at, created_at
        FROM (
          SELECT c.*,
                 ROW_NUMBER() OVER (PARTITION BY c.photo_id ORDER BY c.created_at DESC, c.id DESC) AS rn
          FROM album_comments c
-         WHERE c.photo_id = ANY(?::int[]) AND c.deleted_at IS NULL
+         WHERE c.photo_id IN (${inPlaceholders}) AND c.deleted_at IS NULL
        ) ranked
        WHERE rn <= 30
        ORDER BY photo_id ASC, created_at DESC, id DESC`,
-      photoIds
+      ...photoIds
     );
 
     commentRows.forEach((row) => {
